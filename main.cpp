@@ -19,6 +19,15 @@ T charToNumber(char *a) {
     retVal = strtoull(a, &endptr, 10);
     return retVal;
 }
+static void printDebug(const char *fmt, ...)
+{
+#if DEBUG
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+#endif
+}
 
 void getTickData(QCPtr &qc, const uint32_t tick, TickData &result) {
     memset(&result, 0, sizeof(TickData));
