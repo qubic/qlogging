@@ -5,6 +5,10 @@
 #include "keyUtils.h"
 #include "logger.h"
 #include "K12AndKeyUtil.h"
+
+// 0 is short form, 1 is more details, 2 is all details
+int parseToStringDetailLevel = 1;
+
 #define QU_TRANSFER 0
 #define QU_TRANSFER_LOG_SIZE 72
 #define ASSET_ISSUANCE 1
@@ -20,6 +24,10 @@
 #define CONTRACT_DEBUG_MESSAGE 7
 #define BURNING 8
 #define BURNING_LOG_SIZE 40
+#define DUST_BURNING 9
+#define DUST_BURNING_MAX_LOG_SIZE 2621442
+#define SPECTRUM_STATS 10
+#define SPECTRUM_STATS_LOG_SIZE 224
 #define CUSTOM_MESSAGE 255
 
 #define LOG_HEADER_SIZE 26 // 2 bytes epoch + 4 bytes tick + 4 bytes log size/types + 8 bytes log id + 8 bytes log digest
@@ -44,6 +52,10 @@ std::string logTypeToString(uint8_t type){
             return "Contract debug";
         case 8:
             return "Burn";
+        case 9:
+            return "Dust burn";
+        case 10:
+            return "Spectrum stats";
         case 255:
             return "Custom msg";
     }
@@ -116,12 +128,99 @@ std::string parseLogToString_qutil(uint8_t* ptr){
     return res;
 }
 
-std::string parseBurningLog(uint8_t* ptr)
+std::string parseToStringBurningLog(uint8_t* ptr)
 {
     char sourceIdentity[61] = { 0 };
     uint64_t burnAmount = *((uint64_t*)(ptr+32));
     getIdentityFromPublicKey(ptr, sourceIdentity, false);
-    return std::string(sourceIdentity) + " burned " + std::to_string(burnAmount) + " QUs";
+    return std::string(sourceIdentity) + " burned " + std::to_string(burnAmount) + " QU";
+}
+
+struct DustBurning
+{
+    unsigned short numberOfBurns;
+
+    struct Entity
+    {
+        unsigned char publicKey[32];
+        unsigned long long amount;
+    };
+    static_assert(sizeof(Entity) == 40, "Unexpected size");
+
+    unsigned int messageSize() const
+    {
+        return 2 + numberOfBurns * sizeof(Entity);
+    }
+
+    Entity& entity(unsigned short i)
+    {
+        char* buf = reinterpret_cast<char*>(this);
+        return *reinterpret_cast<Entity*>(buf + i * (sizeof(Entity)) + 2);
+    }
+};
+
+std::string parseToStringDustBurningLog(uint8_t* ptr, uint32_t messageSize)
+{
+    DustBurning* db = (DustBurning*)ptr;
+    if (messageSize < 2 || messageSize > DUST_BURNING_MAX_LOG_SIZE || db->messageSize() != messageSize)
+        return "null";
+
+    std::string retVal = "balances of " + std::to_string(db->numberOfBurns) + " entities burned as dust";
+    if (parseToStringDetailLevel >= 1)
+    {
+        char identity[61] = { 0 };
+        for (int i = 0; i < db->numberOfBurns; ++i)
+        {
+            const DustBurning::Entity& e = db->entity(i);
+            getIdentityFromPublicKey(e.publicKey, identity, false);
+            retVal += "\n\t" + std::to_string(i) + ": " + std::to_string(e.amount) + " QU of " + identity;
+
+            if (parseToStringDetailLevel < 2 && i == 1 && db->numberOfBurns > 5)
+            {
+                retVal += "\n\t...";
+                i = db->numberOfBurns - 2;
+            }
+        }
+    }
+
+    return retVal;
+}
+
+std::string parseToStringSpectrumStats(uint8_t* ptr)
+{
+    struct SpectrumStats
+    {
+        unsigned long long totalAmount;
+        unsigned long long dustThresholdBurnAll;
+        unsigned long long dustThresholdBurnHalf;
+        unsigned int numberOfEntities;
+        unsigned int entityCategoryPopulations[48];
+    };
+    SpectrumStats* s = (SpectrumStats*)ptr;
+    
+    std::string retVal = std::to_string(s->totalAmount) + " QU in " + std::to_string(s->numberOfEntities)
+        + " entities, dust threshold " + std::to_string(s->dustThresholdBurnAll);
+    if (s->dustThresholdBurnHalf != 0)
+        retVal += " (burn all <=), " + std::to_string(s->dustThresholdBurnHalf) + " (burn half <=)";
+    if (parseToStringDetailLevel >= 1)
+    {
+        for (int i = 0; i < 48; ++i)
+        {
+            if (s->entityCategoryPopulations[i])
+            {
+                unsigned long long lowerBound = (1llu << i), upperBound = (1llu << (i + 1)) - 1;
+                const char* burnIndicator = "\n\t+ bin ";
+                if (lowerBound <= s->dustThresholdBurnAll)
+                    burnIndicator = "\n\t- bin ";
+                else if (lowerBound <= s->dustThresholdBurnHalf)
+                    burnIndicator = "\n\t* bin ";
+                retVal += burnIndicator + std::to_string(i) + ": " + std::to_string(s->entityCategoryPopulations[i]) + " entities with amount between "
+                    + std::to_string(lowerBound) + " and " + std::to_string(upperBound);
+            }
+        }
+    }
+
+    return retVal;
 }
 
 std::string parseLogToString_type2_type3(uint8_t* ptr){
@@ -158,7 +257,7 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
         return -1;
     }
     if (bufferSize < LOG_HEADER_SIZE){
-        LOG("Buffer size is too small (not enough to contain the header), expected 16 | received %d\n", bufferSize);
+        LOG("Buffer size is too small (not enough to contain the header), expected 26 | received %d\n", bufferSize);
         return -1;
     }
     uint8_t* end = logBuffer + bufferSize;
@@ -215,10 +314,24 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
                 break;
             case BURNING:
                 if (messageSize == BURNING_LOG_SIZE) {
-                    humanLog = parseBurningLog(logBuffer);
+                    humanLog = parseToStringBurningLog(logBuffer);
                 }
                 else {
                     LOG("Malfunction buffer size for BURNING log\n");
+                }
+                break;
+            case DUST_BURNING:
+                humanLog = parseToStringDustBurningLog(logBuffer, messageSize);
+                if (humanLog == "null") {
+                    LOG("Malfunction buffer size for DUST_BURNING log\n");
+                }
+                break;
+            case SPECTRUM_STATS:
+                if (messageSize == SPECTRUM_STATS_LOG_SIZE) {
+                    humanLog = parseToStringSpectrumStats(logBuffer);
+                }
+                else {
+                    LOG("Malfunction buffer size for SPECTRUM_STATS log\n");
                 }
                 break;
             // TODO: stay up-to-date with core node contract logger
