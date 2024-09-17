@@ -11,6 +11,7 @@ private:
     unsigned int _dejavu;
 
 public:
+    static constexpr unsigned int max_size = 0xFFFFFF;
     inline unsigned int size() {
         if (((*((unsigned int*)_size)) & 0xFFFFFF)==0) return INT32_MAX; // size is never zero, zero means broken packets
         return (*((unsigned int*)_size)) & 0xFFFFFF;

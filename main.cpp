@@ -44,7 +44,8 @@ void getTickData(QCPtr &qc, const uint32_t tick, TickData &result) {
     return;
 }
 
-void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId) {
+// un-used for now
+void getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId) {
     struct {
         RequestResponseHeader header;
         unsigned long long passcode[4];
@@ -70,17 +71,62 @@ void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
         if (header->type() == RespondLog::type()) {
             auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
             retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
+            fflush(stdout);
         }
         ptr += header->size();
     }
 
     if (retLogId < toId) {
         // round buffer case, only the first half returned, call one more time to print out another half
-        getLogFromNode(qc, passcode, retLogId + 1, toId);
+        getLogFromNodeChunk(qc, passcode, retLogId + 1, toId);
     }
     if (retLogId == -1) {
-        printf("WARNING: Unexpected value for retLogId\n");
+        LOG("[0] WARNING: Unexpected value for retLogId\n");
     }
+}
+
+void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uint64_t _toId)
+{
+    struct {
+        RequestResponseHeader header;
+        unsigned long long passcode[4];
+        unsigned long long fromid;
+        unsigned long long toid;
+    } packet;
+    for (uint64_t l_id = _fromId; l_id < _toId; l_id++)
+    {
+        memset(&packet, 0, sizeof(packet));
+        packet.header.setSize(sizeof(packet));
+        packet.header.randomizeDejavu();
+        packet.header.setType(RequestLog::type());
+        memcpy(packet.passcode, passcode, 4 * sizeof(uint64_t));
+        packet.fromid = l_id;
+        packet.toid = l_id;
+        qc->sendData((uint8_t *) &packet, packet.header.size());
+        std::vector<uint8_t> buffer;
+        qc->receiveAFullPacket(buffer);
+        uint8_t *data = buffer.data();
+        int recvByte = buffer.size();
+        int ptr = 0;
+        unsigned long long retLogId = -1; // max uint64
+        while (ptr < recvByte) {
+            auto header = (RequestResponseHeader *) (data + ptr);
+            if (header->type() == RespondLog::type()) {
+                auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
+                retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
+                fflush(stdout);
+            }
+            ptr += header->size();
+        }
+        if (retLogId == -1) {
+            LOG("[1] WARNING: Unexpected value for retLogId\n");
+        }
+    }
+}
+
+void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId)
+{
+    getLogFromNodeOneByOne(qc, passcode, fromId, toId);
 }
 
 void getLogIdRange(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick, uint32_t txsId, long long &fromId,
