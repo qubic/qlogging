@@ -243,11 +243,11 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
         }
         LOG("[%llu] %u.%03d %s: %s\n", logId, tick, epoch, mt.c_str(), humanLog.c_str());
         if (humanLog == "null"){
-            char buff[1024*2] = {0};
-            for (unsigned int i = 0; i < messageSize; i++){
+            char buff[1024*2 + 1] = {0};
+            for (unsigned int i = 0; i < std::min(messageSize, (uint32_t)1024); i++){
                 sprintf(buff + i*2, "%02x", logBuffer[i]);
             }
-            LOG("NO parser for this message yet | Original message: %s\n", buff);
+            LOG("NO parser for this message yet | Original message (%u bytes): %s%s\n", messageSize, buff, (messageSize > 1024) ? "..." : "");
         }
         logBuffer+= messageSize;
     }
