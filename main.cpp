@@ -150,7 +150,7 @@ void getLogIdRange(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick, uint32
     packet.txId = txsId;
     qc->sendData((uint8_t *) &packet, packet.header.size());
     auto result = qc->receivePacketAs<ResponseLogIdRange>();
-    if (result.length) {
+    if (result.length != -1) {
         fromId = result.fromLogId;
         toId = fromId + result.length - 1;
     } else {
