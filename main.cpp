@@ -318,7 +318,7 @@ int run(int argc, char *argv[]) {
                         getTickTransactions(qc, tick, i, txs, extraData);
                         if ( memcmp(txs.destinationPublicKey, arbPubkey, 32) == 0)
                         {
-                            if (txs.inputSize == 32 && txs.amount == 0)
+                            if (txs.inputSize == 64 && txs.amount == 0)
                             {
                                 printf(">>> Reason: Solution txs has no log\n");
                             }

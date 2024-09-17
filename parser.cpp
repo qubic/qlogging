@@ -278,7 +278,10 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
             KangarooTwelve(logBuffer + LOG_HEADER_SIZE, messageSize, (uint8_t*) & computedLogDigest, 8);
             if (logDigest != computedLogDigest)
             {
+                LOG("------------------------------\n");
                 LOG("WARNING: mismatched log digest\n");
+                LOG("------------------------------\n");
+                return retLogId;
             }
         }
         logBuffer += LOG_HEADER_SIZE;
