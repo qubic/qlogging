@@ -12,6 +12,8 @@
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 #define DEBUG 0
 
+static uint64_t gLastProcessedLogId = 0;
+
 template<typename T>
 T charToNumber(char *a) {
     T retVal = 0;
@@ -93,8 +95,9 @@ void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uin
         unsigned long long fromid;
         unsigned long long toid;
     } packet;
-    for (uint64_t l_id = _fromId; l_id < _toId; l_id++)
+    for (uint64_t l_id = _fromId; l_id <= _toId; l_id++)
     {
+        if (l_id < gLastProcessedLogId) continue;
         memset(&packet, 0, sizeof(packet));
         packet.header.setSize(sizeof(packet));
         packet.header.randomizeDejavu();
@@ -114,6 +117,7 @@ void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uin
             if (header->type() == RespondLog::type()) {
                 auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
                 retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
+                gLastProcessedLogId = retLogId;
                 fflush(stdout);
             }
             ptr += header->size();

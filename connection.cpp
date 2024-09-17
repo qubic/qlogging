@@ -87,6 +87,9 @@ QubicConnection::~QubicConnection()
 int QubicConnection::receiveData(uint8_t* buffer, int sz)
 {
     int count = 0;
+    bool showProgress = false;
+    if (sz > 10000) showProgress = true;
+    double orgSize = sz;
     while (sz)
     {
         auto ret = recv(mSocket, (char*)buffer + count, min(1024,sz), 0);
@@ -96,7 +99,12 @@ int QubicConnection::receiveData(uint8_t* buffer, int sz)
         }
         count += ret;
         sz -= ret;
+        if (showProgress)
+        {
+            LOG("\rProgress %.4f %%", double(count)/orgSize*100);
+        }
     }
+    if (showProgress) LOG("\n");
 	return count;
 }
 void QubicConnection::receiveAFullPacket(std::vector<uint8_t>& buffer)
