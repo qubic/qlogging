@@ -381,6 +381,10 @@ int run(int argc, char *argv[]) {
                         {
                             printf(">>> Reason: Vote counter tx doesn't generate any log\n");
                         }
+                        else if (isArrayZero(txs.destinationPublicKey, 32) && txs.inputSize == 64 && txs.inputType == 2)
+                        {
+                            printf(">>> Solution tx should have log if logging is enabled!\n");
+                        }
                         else if ( ((uint64_t*)txs.destinationPublicKey)[0] == 1) // QX
                         {
                             if (txs.inputType == 0)

@@ -214,7 +214,7 @@ std::string parseToStringSpectrumStats(uint8_t* ptr)
                     burnIndicator = "\n\t- bin ";
                 else if (lowerBound <= s->dustThresholdBurnHalf)
                     burnIndicator = "\n\t* bin ";
-                retVal += burnIndicator + std::to_string(i) + ": " + std::to_string(s->entityCategoryPopulations[i]) + " entities with amount between "
+                retVal += burnIndicator + std::to_string(i) + ": " + std::to_string(s->entityCategoryPopulations[i]) + " entities with balance between "
                     + std::to_string(lowerBound) + " and " + std::to_string(upperBound);
             }
         }
@@ -273,6 +273,11 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
         uint8_t messageType = tmp >> 24;
         std::string mt = logTypeToString(messageType);
         uint32_t messageSize = (tmp << 8) >> 8;
+        if (logBuffer + LOG_HEADER_SIZE + messageSize > end)
+        {
+            LOG("Error: log buffer contains incomplete log message (log ID %llu)", logId);
+            return retLogId;
+        }
         {
             uint64_t computedLogDigest = 0;
             KangarooTwelve(logBuffer + LOG_HEADER_SIZE, messageSize, (uint8_t*) & computedLogDigest, 8);
