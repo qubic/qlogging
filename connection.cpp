@@ -87,6 +87,9 @@ QubicConnection::~QubicConnection()
 int QubicConnection::receiveData(uint8_t* buffer, int sz)
 {
     int count = 0;
+    bool showProgress = false;
+    if (sz > 10000) showProgress = true;
+    double orgSize = sz;
     while (sz)
     {
         auto ret = recv(mSocket, (char*)buffer + count, min(1024,sz), 0);
@@ -96,7 +99,12 @@ int QubicConnection::receiveData(uint8_t* buffer, int sz)
         }
         count += ret;
         sz -= ret;
+        if (showProgress)
+        {
+            LOG("\rProgress %.4f %%", double(count)/orgSize*100);
+        }
     }
+    if (showProgress) LOG("\n");
 	return count;
 }
 void QubicConnection::receiveAFullPacket(std::vector<uint8_t>& buffer)
@@ -104,13 +112,17 @@ void QubicConnection::receiveAFullPacket(std::vector<uint8_t>& buffer)
     // first receive the header
     RequestResponseHeader header;
     int recvByte = receiveData((uint8_t*)&header, sizeof(RequestResponseHeader));
-    if (recvByte != sizeof(RequestResponseHeader)) throw std::logic_error("No connection.");
+    if (recvByte != sizeof(RequestResponseHeader)) throw std::logic_error("Failed to get header.");
     int packet_size = header.size();
+    if (packet_size > RequestResponseHeader::max_size)
+    {
+        throw std::logic_error("Malformed header data.");
+    }
     buffer.resize(header.size());
     memcpy(buffer.data(), &header, sizeof(RequestResponseHeader));
     // receive the rest
     recvByte = receiveData(buffer.data() + sizeof(RequestResponseHeader), packet_size - sizeof(RequestResponseHeader));
-    if (recvByte != packet_size - sizeof(RequestResponseHeader)) throw std::logic_error("No connection.");
+    if (recvByte != packet_size - sizeof(RequestResponseHeader)) throw std::logic_error("Not received enough data.");
 }
 
 template <typename T>
