@@ -325,31 +325,31 @@ void printTxMapTable(ResponseAllLogIdRangesFromTick& txmap)
     LOG("Event\t\tFromId\tToId\n");
     if (isValidRange(txmap.fromLogId[SC_INITIALIZE_TX], txmap.length[SC_INITIALIZE_TX]))
     {
-        LOG("SC_INIT\t\t%u\t%u\n", txmap.fromLogId[SC_INITIALIZE_TX], txmap.fromLogId[SC_INITIALIZE_TX] + txmap.length[SC_INITIALIZE_TX]);
+        LOG("SC_INIT\t\t%u\t%u\n", txmap.fromLogId[SC_INITIALIZE_TX], txmap.fromLogId[SC_INITIALIZE_TX] + txmap.length[SC_INITIALIZE_TX] - 1);
     }
     if (isValidRange(txmap.fromLogId[SC_BEGIN_EPOCH_TX], txmap.length[SC_BEGIN_EPOCH_TX]))
     {
-        LOG("BEGIN_EPOCH\t\t%u\t%u\n", txmap.fromLogId[SC_BEGIN_EPOCH_TX], txmap.fromLogId[SC_BEGIN_EPOCH_TX] + txmap.length[SC_BEGIN_EPOCH_TX]);
+        LOG("BEGIN_EPOCH\t\t%u\t%u\n", txmap.fromLogId[SC_BEGIN_EPOCH_TX], txmap.fromLogId[SC_BEGIN_EPOCH_TX] + txmap.length[SC_BEGIN_EPOCH_TX] - 1);
     }
     if (isValidRange(txmap.fromLogId[SC_BEGIN_TICK_TX], txmap.length[SC_BEGIN_TICK_TX]))
     {
-        LOG("BEGIN_TICK\t\t%u\t%u\n", txmap.fromLogId[SC_BEGIN_TICK_TX], txmap.fromLogId[SC_BEGIN_TICK_TX] + txmap.length[SC_BEGIN_TICK_TX]);
+        LOG("BEGIN_TICK\t\t%u\t%u\n", txmap.fromLogId[SC_BEGIN_TICK_TX], txmap.fromLogId[SC_BEGIN_TICK_TX] + txmap.length[SC_BEGIN_TICK_TX] - 1);
     }
     for (int i = 0; i < LOG_TX_PER_TICK; i++)
     {
         if (isValidRange(txmap.fromLogId[i], txmap.length[i]))
         {
-            LOG("Tx #%d\t\t%u\t%u\n", i, txmap.fromLogId[i], txmap.fromLogId[i] + txmap.length[i]);
+            LOG("Tx #%d\t\t%u\t%u\n", i, txmap.fromLogId[i], txmap.fromLogId[i] + txmap.length[i] - 1);
         }
     }
 
     if (isValidRange(txmap.fromLogId[SC_END_TICK_TX], txmap.length[SC_END_TICK_TX]))
     {
-        LOG("END_TICK\t\t%u\t%u\n", txmap.fromLogId[SC_END_TICK_TX], txmap.fromLogId[SC_END_TICK_TX] + txmap.length[SC_END_TICK_TX]);
+        LOG("END_TICK\t\t%u\t%u\n", txmap.fromLogId[SC_END_TICK_TX], txmap.fromLogId[SC_END_TICK_TX] + txmap.length[SC_END_TICK_TX] - 1);
     }
     if (isValidRange(txmap.fromLogId[SC_END_EPOCH_TX], txmap.length[SC_END_EPOCH_TX]))
     {
-        LOG("END_EPOCH\t\t%u\t%u\n", txmap.fromLogId[SC_END_EPOCH_TX], txmap.fromLogId[SC_END_EPOCH_TX] + txmap.length[SC_END_EPOCH_TX]);
+        LOG("END_EPOCH\t\t%u\t%u\n", txmap.fromLogId[SC_END_EPOCH_TX], txmap.fromLogId[SC_END_EPOCH_TX] + txmap.length[SC_END_EPOCH_TX] - 1);
     }
     LOG("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 }
@@ -399,7 +399,7 @@ int run(int argc, char *argv[]) {
                 if (isValidRange(all_ranges.fromLogId[i], all_ranges.length[i]))
                 {
                     fromId = std::min(fromId, all_ranges.fromLogId[i]);
-                    toId = std::max(toId, all_ranges.fromLogId[i] + all_ranges.length[i]);
+                    toId = std::max(toId, all_ranges.fromLogId[i] + all_ranges.length[i] - 1);
                 }
             }
             if (fromId < toId && fromId >= 0 && toId > 0)
