@@ -93,9 +93,9 @@ int QubicConnection::receiveData(uint8_t* buffer, int sz)
     while (sz)
     {
         auto ret = recv(mSocket, (char*)buffer + count, min(1024,sz), 0);
-        if (ret == -1)
+        if (ret <= 0)
         {
-            return -1;
+            return count;
         }
         count += ret;
         sz -= ret;
