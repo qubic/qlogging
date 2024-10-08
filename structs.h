@@ -168,6 +168,32 @@ struct ResponseLogIdRange // Fetches logId range
     }
 };
 
+// Request logid ranges of all txs from a tick
+struct RequestAllLogIdRangesFromTick
+{
+    unsigned long long passcode[4];
+    unsigned int tick;
+
+    static constexpr unsigned char type()
+    {
+        return 50;
+    }
+};
+
+#define LOG_TX_NUMBER_OF_SPECIAL_EVENT 5
+#define LOG_TX_PER_TICK (NUMBER_OF_TRANSACTIONS_PER_TICK + LOG_TX_NUMBER_OF_SPECIAL_EVENT)// +5 special events
+// Response logid ranges of all txs from a tick
+struct ResponseAllLogIdRangesFromTick
+{
+    long long fromLogId[LOG_TX_PER_TICK];
+    long long length[LOG_TX_PER_TICK];
+
+    static constexpr unsigned char type()
+    {
+        return 51;
+    }
+};
+
 
 struct RespondLog // Returns buffered log; clears the buffer; make sure you fetch log quickly enough, if the buffer is overflown log stops being written into it till the node restart
 {

@@ -166,4 +166,5 @@ int QubicConnection::sendData(uint8_t* buffer, int sz)
 }
 
 template ResponseLogIdRange QubicConnection::receivePacketAs<ResponseLogIdRange>();
+template ResponseAllLogIdRangesFromTick QubicConnection::receivePacketAs<ResponseAllLogIdRangesFromTick>();
 template TickData QubicConnection::receivePacketAs<TickData>();

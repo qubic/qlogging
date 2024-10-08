@@ -46,7 +46,6 @@ void getTickData(QCPtr &qc, const uint32_t tick, TickData &result) {
     return;
 }
 
-// un-used for now
 void getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId) {
     struct {
         RequestResponseHeader header;
@@ -130,7 +129,8 @@ void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uin
 
 void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId)
 {
-    getLogFromNodeOneByOne(qc, passcode, fromId, toId);
+    getLogFromNodeChunk(qc, passcode, fromId, toId);
+    //getLogFromNodeOneByOne(qc, passcode, fromId, toId);
 }
 
 void getLogIdRange(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick, uint32_t txsId, long long &fromId,
@@ -157,7 +157,23 @@ void getLogIdRange(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick, uint32
         fromId = -1;
         toId = -1;
     }
+}
 
+ResponseAllLogIdRangesFromTick getAllLogIdRangesFromTick(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick) {
+    struct {
+        RequestResponseHeader header;
+        unsigned long long passcode[4];
+        unsigned int tick;
+    } packet;
+    memset(&packet, 0, sizeof(packet));
+    packet.header.setSize(sizeof(packet));
+    packet.header.randomizeDejavu();
+    packet.header.setType(RequestAllLogIdRangesFromTick::type());
+    memcpy(packet.passcode, passcode, 4 * sizeof(uint64_t));
+    packet.tick = requestedTick;
+    qc->sendData((uint8_t *) &packet, packet.header.size());
+    auto result = qc->receivePacketAs<ResponseAllLogIdRangesFromTick>();
+    return result;
 }
 
 static CurrentTickInfo getTickInfoFromNode(QCPtr &qc) {
@@ -278,7 +294,7 @@ uint32_t getTickNumberFromNode(QCPtr &qc, char *isFirstTick = NULL) {
     return curTickInfo.tick;
 }
 
-TickData td;
+//TickData td;
 
 void checkSystemLog(QCPtr &qc, uint64_t *passcode, unsigned int tick, unsigned int systemEventID,
                     std::string systemEventName) {
@@ -291,11 +307,53 @@ void checkSystemLog(QCPtr &qc, uint64_t *passcode, unsigned int tick, unsigned i
     }
 }
 
+
 unsigned int SC_INITIALIZE_TX = NUMBER_OF_TRANSACTIONS_PER_TICK + 0;
 unsigned int SC_BEGIN_EPOCH_TX = NUMBER_OF_TRANSACTIONS_PER_TICK + 1;
 unsigned int SC_BEGIN_TICK_TX = NUMBER_OF_TRANSACTIONS_PER_TICK + 2;
 unsigned int SC_END_TICK_TX = NUMBER_OF_TRANSACTIONS_PER_TICK + 3;
 unsigned int SC_END_EPOCH_TX = NUMBER_OF_TRANSACTIONS_PER_TICK + 4;
+
+bool isValidRange(long long start, long long length)
+{
+    return start >= 0 && length > 0;
+}
+
+void printTxMapTable(ResponseAllLogIdRangesFromTick& txmap)
+{
+    LOG("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+    LOG("Event\t\tFromId\tToId\n");
+    if (isValidRange(txmap.fromLogId[SC_INITIALIZE_TX], txmap.length[SC_INITIALIZE_TX]))
+    {
+        LOG("SC_INIT\t\t%u\t%u\n", txmap.fromLogId[SC_INITIALIZE_TX], txmap.fromLogId[SC_INITIALIZE_TX] + txmap.length[SC_INITIALIZE_TX]);
+    }
+    if (isValidRange(txmap.fromLogId[SC_BEGIN_EPOCH_TX], txmap.length[SC_BEGIN_EPOCH_TX]))
+    {
+        LOG("BEGIN_EPOCH\t\t%u\t%u\n", txmap.fromLogId[SC_BEGIN_EPOCH_TX], txmap.fromLogId[SC_BEGIN_EPOCH_TX] + txmap.length[SC_BEGIN_EPOCH_TX]);
+    }
+    if (isValidRange(txmap.fromLogId[SC_BEGIN_TICK_TX], txmap.length[SC_BEGIN_TICK_TX]))
+    {
+        LOG("BEGIN_TICK\t\t%u\t%u\n", txmap.fromLogId[SC_BEGIN_TICK_TX], txmap.fromLogId[SC_BEGIN_TICK_TX] + txmap.length[SC_BEGIN_TICK_TX]);
+    }
+    for (int i = 0; i < LOG_TX_PER_TICK; i++)
+    {
+        if (isValidRange(txmap.fromLogId[i], txmap.length[i]))
+        {
+            LOG("Tx #%d\t\t%u\t%u\n", i, txmap.fromLogId[i], txmap.fromLogId[i] + txmap.length[i]);
+        }
+    }
+
+    if (isValidRange(txmap.fromLogId[SC_END_TICK_TX], txmap.length[SC_END_TICK_TX]))
+    {
+        LOG("END_TICK\t\t%u\t%u\n", txmap.fromLogId[SC_END_TICK_TX], txmap.fromLogId[SC_END_TICK_TX] + txmap.length[SC_END_TICK_TX]);
+    }
+    if (isValidRange(txmap.fromLogId[SC_END_EPOCH_TX], txmap.length[SC_END_EPOCH_TX]))
+    {
+        LOG("END_EPOCH\t\t%u\t%u\n", txmap.fromLogId[SC_END_EPOCH_TX], txmap.fromLogId[SC_END_EPOCH_TX] + txmap.length[SC_END_EPOCH_TX]);
+    }
+    LOG("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+}
+
 
 int run(int argc, char *argv[]) {
     if (argc != 8) {
@@ -332,86 +390,28 @@ int run(int argc, char *argv[]) {
                 std::this_thread::sleep_for(std::chrono::seconds(3));
                 continue;
             }
-
-            memset(&td, 0, sizeof(td));
-            getTickData(qc, tick, td);
-            if (isArrayZero((uint8_t *) &td, sizeof(td))) {
-                printDebug("Tick %u is empty\n", tick);
-                fflush(stdout);
-                tick++;
-                continue;
-            }
-
-            if (isFirstTick) {
-                isFirstTick = 0;
-                checkSystemLog(qc, passcode, tick, SC_INITIALIZE_TX, "SC_INITIALIZE_TX");
-                checkSystemLog(qc, passcode, tick, SC_BEGIN_EPOCH_TX, "SC_BEGIN_EPOCH_TX");
-            }
-            checkSystemLog(qc, passcode, tick, SC_BEGIN_TICK_TX, "SC_BEGIN_TICK_TX");
-            // for debugging purpose, this one isn't needed in real code
-            int nTx = 0;
-            for (int i = 0; i < 1024; i++) {
-                if (isArrayZero(td.transactionDigests[i], 32)) break;
-                nTx++;
-            }
-
-            if (nTx) {
-                for (int i = 0; i < nTx; i++) {
-                    long long fromId = 0, toId = 0;
-                    getLogIdRange(qc, passcode, tick, i, fromId, toId);
-                    if (fromId < 0 || toId < 0) {
-#if DEBUG
-                        printf("Tick %u Transaction #%d doesn't generate any log - returned value %lld %lld\n", tick, i, fromId, toId);
-                        // for debugging
-                        Transaction txs;
-                        extraDataStruct extraData;
-                        getTickTransactions(qc, tick, i, txs, extraData);
-                        if ( memcmp(txs.destinationPublicKey, arbPubkey, 32) == 0)
-                        {
-                            if (txs.inputSize == 64 && txs.amount == 0)
-                            {
-                                printf(">>> Reason: Solution txs has no log\n");
-                            }
-                            else
-                            {
-                                printf(">>> Reason: Invalid solution submission\n");
-                            }
-                        }
-                        else if (isArrayZero(txs.destinationPublicKey, 32) && txs.inputSize == 848) // vote counter
-                        {
-                            printf(">>> Reason: Vote counter tx doesn't generate any log\n");
-                        }
-                        else if (isArrayZero(txs.destinationPublicKey, 32) && txs.inputSize == 64 && txs.inputType == 2)
-                        {
-                            printf(">>> Solution tx should have log if logging is enabled!\n");
-                        }
-                        else if ( ((uint64_t*)txs.destinationPublicKey)[0] == 1) // QX
-                        {
-                            if (txs.inputType == 0)
-                            {
-                                printf(">>> Reason: Invalid QX invocation - InputType = 0\n");
-                            }
-                        }
-                        else
-                        {
-                            printf(">>> Reason: Unknown. Tx detail:\n");
-                            printReceipt(txs, nullptr, extraData.vecU8.data(), -1);
-                        }
-                        // end - for debugging
-#endif
-                    } else {
-                        printf("Tick %u Transaction #%d has log from %lld to %lld. Trying to fetch...\n", tick, i,
-                               fromId,
-                               toId);
-                        getLogFromNode(qc, passcode, fromId, toId);
-                    }
+            //ResponseAllLogIdRangesFromTick getAllLogIdRangesFromTick(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick) {
+            auto all_ranges = getAllLogIdRangesFromTick(qc, passcode, tick);
+            long long fromId = INT64_MAX;
+            long long toId = -1;
+            for (int i = 0; i < LOG_TX_PER_TICK; i++)
+            {
+                if (isValidRange(all_ranges.fromLogId[i], all_ranges.length[i]))
+                {
+                    fromId = std::min(fromId, all_ranges.fromLogId[i]);
+                    toId = std::max(toId, all_ranges.fromLogId[i] + all_ranges.length[i]);
                 }
-            } else {
-                printDebug("Tick %u has no transaction\n", tick);
             }
-            checkSystemLog(qc, passcode, tick, SC_END_TICK_TX, "SC_END_TICK_TX");
-            checkSystemLog(qc, passcode, tick, SC_END_EPOCH_TX, "SC_END_EPOCH_TX");
-
+            if (fromId < toId && fromId >= 0 && toId > 0)
+            {
+                // print the txId <-> logId map table here
+                printTxMapTable(all_ranges);
+                getLogFromNode(qc, passcode, fromId, toId);
+            }
+            else
+            {
+                LOG("Tick %u doesn't generate any log\n", tick);
+            }
             tick++;
             fflush(stdout);
         }
