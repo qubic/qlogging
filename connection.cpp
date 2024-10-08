@@ -88,7 +88,7 @@ int QubicConnection::receiveData(uint8_t* buffer, int sz)
 {
     int count = 0;
     bool showProgress = false;
-    if (sz > 10000) showProgress = true;
+    if (sz > 50000) showProgress = true;
     double orgSize = sz;
     while (sz)
     {
