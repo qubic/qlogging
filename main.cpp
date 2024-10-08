@@ -46,7 +46,7 @@ void getTickData(QCPtr &qc, const uint32_t tick, TickData &result) {
     return;
 }
 
-void getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId) {
+bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId) {
     struct {
         RequestResponseHeader header;
         unsigned long long passcode[4];
@@ -79,11 +79,13 @@ void getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
 
     if (retLogId < toId) {
         // round buffer case, only the first half returned, call one more time to print out another half
-        getLogFromNodeChunk(qc, passcode, retLogId + 1, toId);
+        return getLogFromNodeChunk(qc, passcode, retLogId + 1, toId);
     }
     if (retLogId == -1) {
         LOG("[0] WARNING: Unexpected value for retLogId\n");
+        return false;
     }
+    return true;
 }
 
 void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uint64_t _toId)
@@ -129,7 +131,13 @@ void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uin
 
 void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId)
 {
-    getLogFromNodeChunk(qc, passcode, fromId, toId);
+    bool finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
+    while (!finish)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        LOG("Failed to get logging content, retry in 3 seconds...\n");
+        finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
+    }
     //getLogFromNodeOneByOne(qc, passcode, fromId, toId);
 }
 
