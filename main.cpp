@@ -410,7 +410,7 @@ int run(int argc, char *argv[]) {
                     toId = std::max(toId, all_ranges.fromLogId[i] + all_ranges.length[i] - 1);
                 }
             }
-            if (fromId <= toId && fromId >= 0 && toId > 0)
+            if (fromId <= toId && fromId >= 0)
             {
                 // print the txId <-> logId map table here
                 printTxMapTable(all_ranges);
