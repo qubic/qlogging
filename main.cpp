@@ -343,7 +343,7 @@ void printTxMapTable(ResponseAllLogIdRangesFromTick& txmap)
     {
         LOG("BEGIN_TICK\t\t%u\t%u\n", txmap.fromLogId[SC_BEGIN_TICK_TX], txmap.fromLogId[SC_BEGIN_TICK_TX] + txmap.length[SC_BEGIN_TICK_TX] - 1);
     }
-    for (int i = 0; i < LOG_TX_PER_TICK; i++)
+    for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
         if (isValidRange(txmap.fromLogId[i], txmap.length[i]))
         {
