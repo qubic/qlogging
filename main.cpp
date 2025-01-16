@@ -184,6 +184,45 @@ ResponseAllLogIdRangesFromTick getAllLogIdRangesFromTick(QCPtr &qc, uint64_t *pa
     return result;
 }
 
+// doesn't have log
+bool isEmpty(ResponseAllLogIdRangesFromTick& resp)
+{
+    for (int i = 0; i < LOG_TX_PER_TICK; i++)
+    {
+        if (resp.fromLogId[i] != -2 || resp.length[i] != -2)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// unknown because node is loaded from snapshot
+bool isUnknown(ResponseAllLogIdRangesFromTick& resp)
+{
+    for (int i = 0; i < LOG_TX_PER_TICK; i++)
+    {
+        if (resp.fromLogId[i] != -2 || resp.length[i] != -2)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// not yet generated because querying future tick or current tick is being processed
+bool isNotYetGenerated(ResponseAllLogIdRangesFromTick& resp)
+{
+    for (int i = 0; i < LOG_TX_PER_TICK; i++)
+    {
+        if (resp.fromLogId[i] != -3 || resp.length[i] != -3)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 static CurrentTickInfo getTickInfoFromNode(QCPtr &qc) {
     CurrentTickInfo result;
     memset(&result, 0, sizeof(CurrentTickInfo));
@@ -393,13 +432,29 @@ int run(int argc, char *argv[]) {
                 isFirstTick = 0;
                 currentTick = getTickNumberFromNode(qc, &isFirstTick);
             }
-            if (currentTick <= tick) {
+            if (currentTick < tick) {
                 printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
                 std::this_thread::sleep_for(std::chrono::seconds(3));
                 continue;
             }
-            //ResponseAllLogIdRangesFromTick getAllLogIdRangesFromTick(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick) {
             auto all_ranges = getAllLogIdRangesFromTick(qc, passcode, tick);
+            bool is_empty = isEmpty(all_ranges);
+            bool is_unknown = isUnknown(all_ranges);
+            bool is_not_yet_generated = isNotYetGenerated(all_ranges);
+            if (is_empty || is_unknown)
+            {
+                if (is_empty) LOG("Tick %u doesn't generate any log\n", tick);
+                if (is_unknown) LOG("This node doesn't have logging for tick %u\n", tick);
+                tick++;
+                continue;
+            }
+            if (is_not_yet_generated)
+            {
+                printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
+                std::this_thread::sleep_for(std::chrono::seconds(3));
+                continue;
+            }
+
             long long fromId = INT64_MAX;
             long long toId = -1;
             for (int i = 0; i < LOG_TX_PER_TICK; i++)
@@ -415,10 +470,6 @@ int run(int argc, char *argv[]) {
                 // print the txId <-> logId map table here
                 printTxMapTable(all_ranges);
                 getLogFromNode(qc, passcode, fromId, toId);
-            }
-            else
-            {
-                LOG("Tick %u doesn't generate any log\n", tick);
             }
             tick++;
             fflush(stdout);
