@@ -346,14 +346,17 @@ printReceipt(Transaction &tx, const char *txHash = nullptr, const uint8_t *extra
     LOG("~~~~~END-RECEIPT~~~~~\n");
 }
 #endif
-uint32_t getTickNumberFromNode(QCPtr &qc, char *isFirstTick = NULL) {
+uint32_t getTickNumberFromNode(QCPtr &qc) {
     auto curTickInfo = getTickInfoFromNode(qc);
     if (isFirstTick) {
         *isFirstTick = curTickInfo.initialTick == curTickInfo.tick;
     }
     return curTickInfo.tick;
 }
-
+uint32_t getInitialTickFromNode(QCPtr &qc) {
+    auto curTickInfo = getTickInfoFromNode(qc);
+    return curTickInfo.initialTick;
+}
 //TickData td;
 
 void checkSystemLog(QCPtr &qc, uint64_t *passcode, unsigned int tick, unsigned int systemEventID,
@@ -430,7 +433,8 @@ int run(int argc, char *argv[]) {
     QCPtr qc;
     uint32_t currentTick = 0;
     bool needReconnect = true;
-    char isFirstTick = 0;
+    int failedCount = 0;
+    int maxFailedCount = 5;
     while (1) {
         try {
             if (needReconnect) {
@@ -442,8 +446,16 @@ int run(int argc, char *argv[]) {
             }
 
             if (currentTick == 0 || currentTick < tick) {
-                isFirstTick = 0;
-                currentTick = getTickNumberFromNode(qc, &isFirstTick);
+                if (currentTick == 0)
+                {
+                    unsigned int initTick = getInitialTickFromNode(qc);
+                    if (initTick != 0 && tick < initTick)
+                    {
+                        tick = initTick;
+                        LOG("Requested tick is lower than initial tick of the node, force change tick => %u\n", initTick);
+                    }
+                }
+                currentTick = getTickNumberFromNode(qc);
             }
             if (currentTick < tick) {
                 printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
@@ -457,8 +469,17 @@ int run(int argc, char *argv[]) {
             bool is_not_yet_generated = isNotYetGenerated(all_ranges);
             if (is_zero)
             {
-                LOG("Failed to receive data for tick %u. Try again...\n", tick);
+                LOG("Failed to receive data for tick %u\n", tick);
+                if (failedCount++ >= maxFailedCount)
+                {
+                    LOG("Reconnecting...\n");
+                    needReconnect = true;
+                }
                 continue;
+            }
+            else
+            {
+                failedCount = 0;
             }
             if (is_empty || is_unknown)
             {
