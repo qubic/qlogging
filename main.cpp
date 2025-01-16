@@ -348,9 +348,6 @@ printReceipt(Transaction &tx, const char *txHash = nullptr, const uint8_t *extra
 #endif
 uint32_t getTickNumberFromNode(QCPtr &qc) {
     auto curTickInfo = getTickInfoFromNode(qc);
-    if (isFirstTick) {
-        *isFirstTick = curTickInfo.initialTick == curTickInfo.tick;
-    }
     return curTickInfo.tick;
 }
 uint32_t getInitialTickFromNode(QCPtr &qc) {
