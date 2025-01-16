@@ -428,7 +428,7 @@ int run(int argc, char *argv[]) {
                 needReconnect = false;
             }
 
-            if (currentTick == 0 || currentTick <= tick) {
+            if (currentTick == 0 || currentTick < tick) {
                 isFirstTick = 0;
                 currentTick = getTickNumberFromNode(qc, &isFirstTick);
             }
