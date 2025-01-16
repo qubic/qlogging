@@ -470,6 +470,7 @@ int run(int argc, char *argv[]) {
                 if (failedCount++ >= maxFailedCount)
                 {
                     LOG("Reconnecting...\n");
+                    failedCount = 0;
                     needReconnect = true;
                 }
                 continue;
