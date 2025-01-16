@@ -189,7 +189,7 @@ bool isEmpty(ResponseAllLogIdRangesFromTick& resp)
 {
     for (int i = 0; i < LOG_TX_PER_TICK; i++)
     {
-        if (resp.fromLogId[i] != -2 || resp.length[i] != -2)
+        if (resp.fromLogId[i] != -1 || resp.length[i] != -1)
         {
             return false;
         }

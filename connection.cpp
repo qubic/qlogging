@@ -135,6 +135,11 @@ T QubicConnection::receivePacketAs()
     {
         throw std::logic_error("No connection.");
     }
+
+    if (T::type() != header.type())
+    {
+        throw std::logic_error("Malformed header data.");
+    }
     int packet_size = header.size();
     T result;
     memset(&result, 0, sizeof(T));

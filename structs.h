@@ -91,6 +91,10 @@ struct TickData
     long long contractFees[1024];
 
     unsigned char signature[SIGNATURE_SIZE];
+    static constexpr unsigned char type()
+    {
+        return 8;
+    }
 };
 
 typedef struct
