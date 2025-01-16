@@ -184,6 +184,19 @@ ResponseAllLogIdRangesFromTick getAllLogIdRangesFromTick(QCPtr &qc, uint64_t *pa
     return result;
 }
 
+// failed internet
+bool isZero(ResponseAllLogIdRangesFromTick& resp)
+{
+    for (int i = 0; i < LOG_TX_PER_TICK; i++)
+    {
+        if (resp.fromLogId[i] != 0 || resp.length[i] != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // doesn't have log
 bool isEmpty(ResponseAllLogIdRangesFromTick& resp)
 {
@@ -438,9 +451,15 @@ int run(int argc, char *argv[]) {
                 continue;
             }
             auto all_ranges = getAllLogIdRangesFromTick(qc, passcode, tick);
+            bool is_zero = isZero(all_ranges);
             bool is_empty = isEmpty(all_ranges);
             bool is_unknown = isUnknown(all_ranges);
             bool is_not_yet_generated = isNotYetGenerated(all_ranges);
+            if (is_zero)
+            {
+                LOG("Failed to receive data for tick %u. Try again...\n", tick);
+                continue;
+            }
             if (is_empty || is_unknown)
             {
                 if (is_empty) LOG("Tick %u doesn't generate any log\n", tick);
@@ -470,6 +489,10 @@ int run(int argc, char *argv[]) {
                 // print the txId <-> logId map table here
                 printTxMapTable(all_ranges);
                 getLogFromNode(qc, passcode, fromId, toId);
+            }
+            else
+            {
+                LOG("[DO NOT EXPECT HERE] Malformed data %u\n", tick);
             }
             tick++;
             fflush(stdout);
