@@ -67,12 +67,13 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
     uint8_t *data = buffer.data();
     int recvByte = buffer.size();
     int ptr = 0;
-    unsigned long long retLogId = -1; // max uint64
+    uint64_t retLogId = -1; // max uint64
     while (ptr < recvByte) {
         auto header = (RequestResponseHeader *) (data + ptr);
         if (header->type() == RespondLog::type()) {
             auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
             retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
+            gLastProcessedLogId = std::max(gLastProcessedLogId, retLogId);
             fflush(stdout);
         }
         ptr += header->size();
@@ -102,6 +103,7 @@ void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
 
 void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uint64_t end)
 {
+    start = std::max(gLastProcessedLogId, start);
     for (uint64_t s = start; s < end; s += MAX_LOG_EVENT_PER_CALL)
     {
         uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL);
