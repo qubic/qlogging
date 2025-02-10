@@ -10,6 +10,7 @@
 #include <stdexcept>
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
+#define MAX_LOG_EVENT_PER_CALL 10000
 #define DEBUG 0
 
 static uint64_t gLastProcessedLogId = 0;
@@ -138,7 +139,15 @@ void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
         LOG("Failed to get logging content, retry in 3 seconds...\n");
         finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
     }
-    //getLogFromNodeOneByOne(qc, passcode, fromId, toId);
+}
+
+void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uint64_t end)
+{
+    for (uint64_t s = start; s < end; s += MAX_LOG_EVENT_PER_CALL)
+    {
+        uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL);
+        getLogFromNode(qc, passcode, s, e);
+    }
 }
 
 void getLogIdRange(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick, uint32_t txsId, long long &fromId,
@@ -363,7 +372,7 @@ void checkSystemLog(QCPtr &qc, uint64_t *passcode, unsigned int tick, unsigned i
     if (fromId < 0 || toId < 0) {}
     else {
         printf("Tick %u %s has log from %lld to %lld\n", tick, systemEventName.c_str(), fromId, toId);
-        getLogFromNode(qc, passcode, fromId, toId);
+        getLogFromNodeLargeBatch(qc, passcode, fromId, toId);
     }
 }
 
@@ -507,7 +516,7 @@ int run(int argc, char *argv[]) {
             {
                 // print the txId <-> logId map table here
                 printTxMapTable(all_ranges);
-                getLogFromNode(qc, passcode, fromId, toId);
+                getLogFromNodeLargeBatch(qc, passcode, fromId, toId);
             }
             else
             {
