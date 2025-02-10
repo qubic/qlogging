@@ -147,6 +147,7 @@ void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uin
     {
         uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL);
         getLogFromNode(qc, passcode, s, e);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 }
 
