@@ -89,47 +89,6 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
     return true;
 }
 
-void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uint64_t _toId)
-{
-    struct {
-        RequestResponseHeader header;
-        unsigned long long passcode[4];
-        unsigned long long fromid;
-        unsigned long long toid;
-    } packet;
-    for (uint64_t l_id = _fromId; l_id <= _toId; l_id++)
-    {
-        if (l_id < gLastProcessedLogId) continue;
-        memset(&packet, 0, sizeof(packet));
-        packet.header.setSize(sizeof(packet));
-        packet.header.randomizeDejavu();
-        packet.header.setType(RequestLog::type());
-        memcpy(packet.passcode, passcode, 4 * sizeof(uint64_t));
-        packet.fromid = l_id;
-        packet.toid = l_id;
-        qc->sendData((uint8_t *) &packet, packet.header.size());
-        std::vector<uint8_t> buffer;
-        qc->receiveAFullPacket(buffer);
-        uint8_t *data = buffer.data();
-        int recvByte = buffer.size();
-        int ptr = 0;
-        unsigned long long retLogId = -1; // max uint64
-        while (ptr < recvByte) {
-            auto header = (RequestResponseHeader *) (data + ptr);
-            if (header->type() == RespondLog::type()) {
-                auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
-                retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
-                gLastProcessedLogId = retLogId;
-                fflush(stdout);
-            }
-            ptr += header->size();
-        }
-        if (retLogId == -1) {
-            LOG("[1] WARNING: Unexpected value for retLogId\n");
-        }
-    }
-}
-
 void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId)
 {
     bool finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
