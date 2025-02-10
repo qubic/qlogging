@@ -11,6 +11,7 @@
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 #define MAX_LOG_EVENT_PER_CALL 10000
+#define RELAX_PER_CALL 50 //time to sleep between every call
 #define DEBUG 0
 
 static uint64_t gLastProcessedLogId = 0;
@@ -108,7 +109,7 @@ void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uin
     {
         uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL);
         getLogFromNode(qc, passcode, s, e);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(std::chrono::milliseconds(RELAX_PER_CALL));
     }
 }
 
