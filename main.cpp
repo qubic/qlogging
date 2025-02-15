@@ -10,6 +10,8 @@
 #include <stdexcept>
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
+#define MAX_LOG_EVENT_PER_CALL 10000
+#define RELAX_PER_CALL 50 //time to sleep between every call
 #define DEBUG 0
 
 static uint64_t gLastProcessedLogId = 0;
@@ -66,12 +68,13 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
     uint8_t *data = buffer.data();
     int recvByte = buffer.size();
     int ptr = 0;
-    unsigned long long retLogId = -1; // max uint64
+    uint64_t retLogId = -1; // max uint64
     while (ptr < recvByte) {
         auto header = (RequestResponseHeader *) (data + ptr);
         if (header->type() == RespondLog::type()) {
             auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
             retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
+            gLastProcessedLogId = std::max(gLastProcessedLogId, retLogId);
             fflush(stdout);
         }
         ptr += header->size();
@@ -88,47 +91,6 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
     return true;
 }
 
-void getLogFromNodeOneByOne(QCPtr &qc, uint64_t *passcode, uint64_t _fromId, uint64_t _toId)
-{
-    struct {
-        RequestResponseHeader header;
-        unsigned long long passcode[4];
-        unsigned long long fromid;
-        unsigned long long toid;
-    } packet;
-    for (uint64_t l_id = _fromId; l_id <= _toId; l_id++)
-    {
-        if (l_id < gLastProcessedLogId) continue;
-        memset(&packet, 0, sizeof(packet));
-        packet.header.setSize(sizeof(packet));
-        packet.header.randomizeDejavu();
-        packet.header.setType(RequestLog::type());
-        memcpy(packet.passcode, passcode, 4 * sizeof(uint64_t));
-        packet.fromid = l_id;
-        packet.toid = l_id;
-        qc->sendData((uint8_t *) &packet, packet.header.size());
-        std::vector<uint8_t> buffer;
-        qc->receiveAFullPacket(buffer);
-        uint8_t *data = buffer.data();
-        int recvByte = buffer.size();
-        int ptr = 0;
-        unsigned long long retLogId = -1; // max uint64
-        while (ptr < recvByte) {
-            auto header = (RequestResponseHeader *) (data + ptr);
-            if (header->type() == RespondLog::type()) {
-                auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
-                retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
-                gLastProcessedLogId = retLogId;
-                fflush(stdout);
-            }
-            ptr += header->size();
-        }
-        if (retLogId == -1) {
-            LOG("[1] WARNING: Unexpected value for retLogId\n");
-        }
-    }
-}
-
 void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId)
 {
     bool finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
@@ -138,7 +100,17 @@ void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
         LOG("Failed to get logging content, retry in 3 seconds...\n");
         finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
     }
-    //getLogFromNodeOneByOne(qc, passcode, fromId, toId);
+}
+
+void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uint64_t end)
+{
+    start = std::max(gLastProcessedLogId, start);
+    for (uint64_t s = start; s < end; s += MAX_LOG_EVENT_PER_CALL)
+    {
+        uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL);
+        getLogFromNode(qc, passcode, s, e);
+        std::this_thread::sleep_for(std::chrono::milliseconds(RELAX_PER_CALL));
+    }
 }
 
 void getLogIdRange(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick, uint32_t txsId, long long &fromId,
@@ -363,7 +335,7 @@ void checkSystemLog(QCPtr &qc, uint64_t *passcode, unsigned int tick, unsigned i
     if (fromId < 0 || toId < 0) {}
     else {
         printf("Tick %u %s has log from %lld to %lld\n", tick, systemEventName.c_str(), fromId, toId);
-        getLogFromNode(qc, passcode, fromId, toId);
+        getLogFromNodeLargeBatch(qc, passcode, fromId, toId);
     }
 }
 
@@ -507,7 +479,7 @@ int run(int argc, char *argv[]) {
             {
                 // print the txId <-> logId map table here
                 printTxMapTable(all_ranges);
-                getLogFromNode(qc, passcode, fromId, toId);
+                getLogFromNodeLargeBatch(qc, passcode, fromId, toId);
             }
             else
             {
