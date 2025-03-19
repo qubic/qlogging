@@ -105,7 +105,7 @@ void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
 void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uint64_t end)
 {
     start = std::max(gLastProcessedLogId, start);
-    for (uint64_t s = start; s < end; s += MAX_LOG_EVENT_PER_CALL)
+    for (uint64_t s = start; s <= end; s += MAX_LOG_EVENT_PER_CALL)
     {
         uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL);
         getLogFromNode(qc, passcode, s, e);
