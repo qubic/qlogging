@@ -20,7 +20,7 @@ template<typename T>
 T charToNumber(char *a) {
     T retVal = 0;
     char *endptr = nullptr;
-    retVal = strtoull(a, &endptr, 10);
+    retVal = T(strtoull(a, &endptr, 10));
     return retVal;
 }
 static void printDebug(const char *fmt, ...)
@@ -66,7 +66,7 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
     std::vector<uint8_t> buffer;
     qc->receiveAFullPacket(buffer);
     uint8_t *data = buffer.data();
-    int recvByte = buffer.size();
+    auto recvByte = buffer.size();
     int ptr = 0;
     uint64_t retLogId = -1; // max uint64
     while (ptr < recvByte) {
@@ -208,6 +208,22 @@ bool isNotYetGenerated(ResponseAllLogIdRangesFromTick& resp)
     return true;
 }
 
+void getLogStateDigest(QCPtr& qc, uint64_t* passcode, uint32_t requestedTick, unsigned char out[32]) {
+    struct {
+        RequestResponseHeader header;
+        RequestLogStateDigest rlsd;
+    } packet;
+    memset(&packet, 0, sizeof(packet));
+    packet.header.setSize(sizeof(packet));
+    packet.header.randomizeDejavu();
+    packet.header.setType(RequestLogIdRange::type());
+    memcpy(packet.rlsd.passcode, passcode, 4 * sizeof(uint64_t));
+    packet.rlsd.requestedTick = requestedTick;
+    qc->sendData((uint8_t*)&packet, packet.header.size());
+    auto result = qc->receivePacketAs<ResponseLogStateDigest>();
+    memcpy(out, result.digest, 32);
+}
+
 static CurrentTickInfo getTickInfoFromNode(QCPtr &qc) {
     CurrentTickInfo result;
     memset(&result, 0, sizeof(CurrentTickInfo));
@@ -222,7 +238,7 @@ static CurrentTickInfo getTickInfoFromNode(QCPtr &qc) {
     std::vector<uint8_t> buffer;
     qc->receiveAFullPacket(buffer);
     uint8_t *data = buffer.data();
-    int recvByte = buffer.size();
+    auto recvByte = buffer.size();
     int ptr = 0;
     while (ptr < recvByte) {
         auto header = (RequestResponseHeader *) (data + ptr);
@@ -431,6 +447,15 @@ int run(int argc, char *argv[]) {
                 std::this_thread::sleep_for(std::chrono::seconds(3));
                 continue;
             }
+
+            if (tick % 10 == 0)
+            {
+                uint8_t logDigest[32] = { 0 };
+                //void getLogStateDigest(QCPtr & qc, uint64_t * passcode, uint32_t requestedTick, unsigned char out[32])
+                getLogStateDigest(qc, passcode, tick, logDigest);
+                for (int i = 0; i < 32; i++) printf("%02x", logDigest[i]); printf("\n");
+            }
+
             auto all_ranges = getAllLogIdRangesFromTick(qc, passcode, tick);
             bool is_zero = isZero(all_ranges);
             bool is_empty = isEmpty(all_ranges);

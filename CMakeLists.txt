@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.1)
 project(qlogging CXX)
 set (CMAKE_CXX_STANDARD 11)
-SET(CXX_QLOGGING_FLAGS "-Wunused-variable")
+if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+else()
+	SET(CXX_QLOGGING_FLAGS "-Wunused-variable")
+endif()
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${CXX_QLOGGING_FLAGS}")
 SET(FILES ${CMAKE_SOURCE_DIR}/connection.cpp
 		  ${CMAKE_SOURCE_DIR}/parser.cpp

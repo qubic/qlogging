@@ -24,7 +24,7 @@ static int connect(const char* nodeIp, int nodePort)
     WSADATA wsa_data;
     WSAStartup(MAKEWORD(2, 0), &wsa_data);
 
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    int serverSocket = int(socket(AF_INET, SOCK_STREAM, 0));
     size_t tv = 1000;
     setsockopt(serverSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
     setsockopt(serverSocket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv);
@@ -173,3 +173,4 @@ int QubicConnection::sendData(uint8_t* buffer, int sz)
 template ResponseLogIdRange QubicConnection::receivePacketAs<ResponseLogIdRange>();
 template ResponseAllLogIdRangesFromTick QubicConnection::receivePacketAs<ResponseAllLogIdRangesFromTick>();
 template TickData QubicConnection::receivePacketAs<TickData>();
+template ResponseLogStateDigest QubicConnection::receivePacketAs<ResponseLogStateDigest>();

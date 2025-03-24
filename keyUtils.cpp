@@ -26,7 +26,7 @@ void getIdentityFromPublicKey(const uint8_t* pubkey, char* dstIdentity, bool isL
         identityBytesChecksum /= 26;
     }
     identity[60] = 0;
-    for (int i = 0; i < 60; i++) dstIdentity[i] = identity[i];
+    for (int i = 0; i < 60; i++) dstIdentity[i] = char(identity[i]);
 }
 
 void getPublicKeyFromIdentity(const char* identity, uint8_t* publicKey)
