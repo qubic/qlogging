@@ -174,3 +174,4 @@ template ResponseLogIdRange QubicConnection::receivePacketAs<ResponseLogIdRange>
 template ResponseAllLogIdRangesFromTick QubicConnection::receivePacketAs<ResponseAllLogIdRangesFromTick>();
 template TickData QubicConnection::receivePacketAs<TickData>();
 template ResponseLogStateDigest QubicConnection::receivePacketAs<ResponseLogStateDigest>();
+template ResponsePruningPageFiles QubicConnection::receivePacketAs<ResponsePruningPageFiles>();

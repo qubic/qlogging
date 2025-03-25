@@ -12,7 +12,9 @@
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 #define MAX_LOG_EVENT_PER_CALL 10000
 #define RELAX_PER_CALL 50 //time to sleep between every call
-#define DEBUG 0
+#define REPORT_DIGEST_INTERVAL 10 // ticks
+#define PRUNE_FILES_INTERVAL 10000 // log id
+#define DEBUG 1
 
 static uint64_t gLastProcessedLogId = 0;
 
@@ -216,12 +218,32 @@ void getLogStateDigest(QCPtr& qc, uint64_t* passcode, uint32_t requestedTick, un
     memset(&packet, 0, sizeof(packet));
     packet.header.setSize(sizeof(packet));
     packet.header.randomizeDejavu();
-    packet.header.setType(RequestLogIdRange::type());
+    packet.header.setType(RequestLogStateDigest::type());
     memcpy(packet.rlsd.passcode, passcode, 4 * sizeof(uint64_t));
     packet.rlsd.requestedTick = requestedTick;
     qc->sendData((uint8_t*)&packet, packet.header.size());
     auto result = qc->receivePacketAs<ResponseLogStateDigest>();
     memcpy(out, result.digest, 32);
+}
+
+void requestToPrune(QCPtr& qc, uint64_t* passcode, uint64_t requestedLogId) {
+    struct {
+        RequestResponseHeader header;
+        RequestPruningPageFiles rppf;
+    } packet;
+    memset(&packet, 0, sizeof(packet));
+    packet.header.setSize(sizeof(packet));
+    packet.header.randomizeDejavu();
+    packet.header.setType(RequestPruningPageFiles::type());
+    memcpy(packet.rppf.passcode, passcode, 4 * sizeof(uint64_t));
+    packet.rppf.fromLogId = 0;
+    packet.rppf.toLogId = requestedLogId;
+    qc->sendData((uint8_t*)&packet, packet.header.size());
+    auto result = qc->receivePacketAs<ResponsePruningPageFiles>();
+    if (result.success != 0)
+    {
+        LOG("Failed to prune files, return code %d\n", result.success);
+    }
 }
 
 static CurrentTickInfo getTickInfoFromNode(QCPtr &qc) {
@@ -275,7 +297,7 @@ static void getTickTransactions(QCPtr &qc, const uint32_t requestedTick, int req
         std::vector<uint8_t> buffer;
         qc->receiveAFullPacket(buffer);
         uint8_t *data = buffer.data();
-        int recvByte = buffer.size();
+        int recvByte = int(buffer.size());
         int ptr = 0;
         while (ptr < recvByte) {
             auto header = (RequestResponseHeader *) (data + ptr);
@@ -420,6 +442,7 @@ int run(int argc, char *argv[]) {
     bool needReconnect = true;
     int failedCount = 0;
     int maxFailedCount = 5;
+    long long totalFetchedLog = 0;
     while (1) {
         try {
             if (needReconnect) {
@@ -448,12 +471,20 @@ int run(int argc, char *argv[]) {
                 continue;
             }
 
-            if (tick % 10 == 0)
+            if ((tick - 2) % REPORT_DIGEST_INTERVAL == 0)
             {
                 uint8_t logDigest[32] = { 0 };
-                //void getLogStateDigest(QCPtr & qc, uint64_t * passcode, uint32_t requestedTick, unsigned char out[32])
-                getLogStateDigest(qc, passcode, tick, logDigest);
-                for (int i = 0; i < 32; i++) printf("%02x", logDigest[i]); printf("\n");
+                getLogStateDigest(qc, passcode, tick - 2, logDigest);
+                if (!isArrayZero(logDigest, 32)) // log state digest is never zero
+                {
+                    LOG("Log digest at tick %d:", tick - 2);
+                    for (int i = 0; i < 32; i++) printf("%02x", logDigest[i]); printf("\n");
+                }
+                else
+                {
+                    LOG("Failed to get log digest at tick %d - retry...", tick - 2);
+                    continue;
+                }
             }
 
             auto all_ranges = getAllLogIdRangesFromTick(qc, passcode, tick);
@@ -500,11 +531,18 @@ int run(int argc, char *argv[]) {
                     toId = std::max(toId, all_ranges.fromLogId[i] + all_ranges.length[i] - 1);
                 }
             }
+
             if (fromId <= toId && fromId >= 0)
             {
                 // print the txId <-> logId map table here
                 printTxMapTable(all_ranges);
                 getLogFromNodeLargeBatch(qc, passcode, fromId, toId);
+                totalFetchedLog += (toId - fromId);
+                if (totalFetchedLog >= PRUNE_FILES_INTERVAL)
+                {
+                    requestToPrune(qc, passcode, toId);
+                    totalFetchedLog = 0;
+                }
             }
             else
             {
