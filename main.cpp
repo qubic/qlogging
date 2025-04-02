@@ -13,8 +13,8 @@
 #define MAX_LOG_EVENT_PER_CALL 10000
 #define RELAX_PER_CALL 50 //time to sleep between every call
 #define REPORT_DIGEST_INTERVAL 10 // ticks
-#define PRUNE_FILES_INTERVAL 10000 // log id
-#define DEBUG 1
+#define PRUNE_FILES_INTERVAL 0xFFFFFFFFFFFFFFFFULL // log id
+#define DEBUG 0
 
 static uint64_t gLastProcessedLogId = 0;
 
@@ -482,7 +482,8 @@ int run(int argc, char *argv[]) {
                 }
                 else
                 {
-                    LOG("Failed to get log digest at tick %d - retry...", tick - 2);
+                    LOG("Failed to get log digest at tick %d - retry...\n", tick - 2);
+                    std::this_thread::sleep_for(std::chrono::seconds(3));
                     continue;
                 }
             }
@@ -500,6 +501,7 @@ int run(int argc, char *argv[]) {
                     LOG("Reconnecting...\n");
                     failedCount = 0;
                     needReconnect = true;
+                    std::this_thread::sleep_for(std::chrono::seconds(3));
                 }
                 continue;
             }
@@ -555,7 +557,7 @@ int run(int argc, char *argv[]) {
             printf("%s\n", ex.what());
             fflush(stdout);
             needReconnect = true;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::seconds(3));
         }
     }
 }
