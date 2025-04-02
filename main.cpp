@@ -11,11 +11,11 @@
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 #define MAX_LOG_EVENT_PER_CALL 10000
-#define RELAX_PER_CALL 50 //time to sleep between every call
+#define RELAX_PER_CALL 30 //time to sleep between every call
 #define REPORT_DIGEST_INTERVAL 10 // ticks
 #define PRUNE_FILES_INTERVAL 0xFFFFFFFFFFFFFFFFULL // log id
 #define DEBUG 0
-
+#define SLEEP(x) std::this_thread::sleep_for(std::chrono::milliseconds(x))
 static uint64_t gLastProcessedLogId = 0;
 
 template<typename T>
@@ -98,8 +98,8 @@ void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
     bool finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
     while (!finish)
     {
-        std::this_thread::sleep_for(std::chrono::seconds(3));
-        LOG("Failed to get logging content, retry in 3 seconds...\n");
+        SLEEP(10000);
+        LOG("Failed to get logging content, retry in 10 seconds...\n");
         finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
     }
 }
@@ -111,7 +111,7 @@ void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uin
     {
         uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL);
         getLogFromNode(qc, passcode, s, e);
-        std::this_thread::sleep_for(std::chrono::milliseconds(RELAX_PER_CALL));
+        SLEEP(RELAX_PER_CALL);
     }
 }
 
@@ -467,7 +467,7 @@ int run(int argc, char *argv[]) {
             }
             if (currentTick < tick) {
                 printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
-                std::this_thread::sleep_for(std::chrono::seconds(3));
+                SLEEP(10000);
                 continue;
             }
 
@@ -483,7 +483,7 @@ int run(int argc, char *argv[]) {
                 else
                 {
                     LOG("Failed to get log digest at tick %d - retry...\n", tick - 2);
-                    std::this_thread::sleep_for(std::chrono::seconds(3));
+                    SLEEP(10000);
                     continue;
                 }
             }
@@ -501,7 +501,7 @@ int run(int argc, char *argv[]) {
                     LOG("Reconnecting...\n");
                     failedCount = 0;
                     needReconnect = true;
-                    std::this_thread::sleep_for(std::chrono::seconds(3));
+                    SLEEP(10000);
                 }
                 continue;
             }
@@ -519,7 +519,7 @@ int run(int argc, char *argv[]) {
             if (is_not_yet_generated)
             {
                 printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
-                std::this_thread::sleep_for(std::chrono::seconds(3));
+                SLEEP(10000);
                 continue;
             }
 
@@ -557,7 +557,7 @@ int run(int argc, char *argv[]) {
             printf("%s\n", ex.what());
             fflush(stdout);
             needReconnect = true;
-            std::this_thread::sleep_for(std::chrono::seconds(3));
+            SLEEP(10000);
         }
     }
 }

@@ -25,7 +25,7 @@ static int connect(const char* nodeIp, int nodePort)
     WSAStartup(MAKEWORD(2, 0), &wsa_data);
 
     int serverSocket = int(socket(AF_INET, SOCK_STREAM, 0));
-    size_t tv = 1000;
+    size_t tv = 10000;
     setsockopt(serverSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
     setsockopt(serverSocket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv);
     sockaddr_in addr;
