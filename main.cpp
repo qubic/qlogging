@@ -10,11 +10,11 @@
 #include <stdexcept>
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
-#define MAX_LOG_EVENT_PER_CALL 10000
+#define MAX_LOG_EVENT_PER_CALL 100000
 #define RELAX_PER_CALL 30 //time to sleep between every call
 #define REPORT_DIGEST_INTERVAL 10 // ticks
 #define PRUNE_FILES_INTERVAL 0xFFFFFFFFFFFFFFFFULL // log id
-#define DEBUG 0
+#define DEBUG 1
 #define SLEEP(x) std::this_thread::sleep_for(std::chrono::milliseconds(x))
 static uint64_t gLastProcessedLogId = 0;
 
@@ -75,7 +75,7 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
         auto header = (RequestResponseHeader *) (data + ptr);
         if (header->type() == RespondLog::type()) {
             auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
-            retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader));
+            retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader), fromId, toId);
             gLastProcessedLogId = std::max(gLastProcessedLogId, retLogId);
             fflush(stdout);
         }
@@ -443,6 +443,7 @@ int run(int argc, char *argv[]) {
     int failedCount = 0;
     int maxFailedCount = 5;
     long long totalFetchedLog = 0;
+    unsigned int initTick = 0;
     while (1) {
         try {
             if (needReconnect) {
@@ -456,7 +457,7 @@ int run(int argc, char *argv[]) {
             if (currentTick == 0 || currentTick < tick) {
                 if (currentTick == 0)
                 {
-                    unsigned int initTick = getInitialTickFromNode(qc);
+                    initTick = getInitialTickFromNode(qc);
                     if (initTick != 0 && tick < initTick)
                     {
                         tick = initTick;
@@ -471,7 +472,7 @@ int run(int argc, char *argv[]) {
                 continue;
             }
 
-            if ((tick - 2) % REPORT_DIGEST_INTERVAL == 0)
+            if ((tick - 2) % REPORT_DIGEST_INTERVAL == 0 && (tick - 2 >= initTick))
             {
                 uint8_t logDigest[32] = { 0 };
                 getLogStateDigest(qc, passcode, tick - 2, logDigest);
