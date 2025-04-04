@@ -11,7 +11,7 @@
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 #define MAX_LOG_EVENT_PER_CALL 100000
-#define RELAX_PER_CALL 30 //time to sleep between every call
+#define RELAX_PER_CALL 100 //time to sleep between every call
 #define REPORT_DIGEST_INTERVAL 10 // ticks
 #define PRUNE_FILES_INTERVAL 0xFFFFFFFFFFFFFFFFULL // log id
 #define DEBUG 1
