@@ -253,7 +253,7 @@ std::string parseLogToString_type2_type3(uint8_t* ptr){
 }
 unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize, uint64_t fromId, uint64_t toId){
     if (bufferSize == 0){
-//        LOG("Empty log\n");
+        LOG("Empty log\n");
         return -1;
     }
     if (bufferSize < LOG_HEADER_SIZE){

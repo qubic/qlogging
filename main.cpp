@@ -76,6 +76,10 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
         if (header->type() == RespondLog::type()) {
             auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
             retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader), fromId, toId);
+            if (retLogId == -1)
+            {
+                break;
+            }
             gLastProcessedLogId = std::max(gLastProcessedLogId, retLogId);
             fflush(stdout);
         }
@@ -93,26 +97,29 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
     return true;
 }
 
-void getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId)
+bool getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toId)
 {
+    int retry = 0;
     bool finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
-    while (!finish)
+    while (!finish && retry++ < 5)
     {
         SLEEP(10000);
         LOG("Failed to get logging content, retry in 10 seconds...\n");
         finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
     }
+    return finish;
 }
 
-void getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uint64_t end)
+bool getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uint64_t end)
 {
     start = std::max(gLastProcessedLogId, start);
     for (uint64_t s = start; s <= end; s += MAX_LOG_EVENT_PER_CALL)
     {
         uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL - 1);
-        getLogFromNode(qc, passcode, s, e);
+        if (!getLogFromNode(qc, passcode, s, e)) return false;
         SLEEP(RELAX_PER_CALL);
     }
+    return true;
 }
 
 void getLogIdRange(QCPtr &qc, uint64_t *passcode, uint32_t requestedTick, uint32_t txsId, long long &fromId,
@@ -364,18 +371,6 @@ uint32_t getInitialTickFromNode(QCPtr &qc) {
     auto curTickInfo = getTickInfoFromNode(qc);
     return curTickInfo.initialTick;
 }
-//TickData td;
-
-void checkSystemLog(QCPtr &qc, uint64_t *passcode, unsigned int tick, unsigned int systemEventID,
-                    std::string systemEventName) {
-    long long fromId = 0, toId = 0;
-    getLogIdRange(qc, passcode, tick, systemEventID, fromId, toId);
-    if (fromId < 0 || toId < 0) {}
-    else {
-        printf("Tick %u %s has log from %lld to %lld\n", tick, systemEventName.c_str(), fromId, toId);
-        getLogFromNodeLargeBatch(qc, passcode, fromId, toId);
-    }
-}
 
 
 unsigned int SC_INITIALIZE_TX = NUMBER_OF_TRANSACTIONS_PER_TICK + 0;
@@ -539,7 +534,13 @@ int run(int argc, char *argv[]) {
             {
                 // print the txId <-> logId map table here
                 printTxMapTable(all_ranges);
-                getLogFromNodeLargeBatch(qc, passcode, fromId, toId);
+                if (!getLogFromNodeLargeBatch(qc, passcode, fromId, toId))
+                {
+                    LOG("Failed to get batch log [%llu -> %llu]. Retry in 10s\n", fromId, toId);
+                    needReconnect = true;
+                    SLEEP(10000);
+                    continue;
+                }
                 totalFetchedLog += (toId - fromId);
                 if (totalFetchedLog >= PRUNE_FILES_INTERVAL)
                 {
