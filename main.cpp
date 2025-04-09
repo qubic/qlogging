@@ -13,11 +13,11 @@
 #define MAX_LOG_EVENT_PER_CALL 100000
 #define RELAX_PER_CALL 100 //time to sleep between every call
 #define REPORT_DIGEST_INTERVAL 10 // ticks
-#define PRUNE_FILES_INTERVAL 0xFFFFFFFFFFFFFFFFULL // log id
+#define PRUNE_FILES_INTERVAL 0xFFFFFFFFFFFFFFFFULL // should be 30000000 to match core
 #define DEBUG 1
 #define SLEEP(x) std::this_thread::sleep_for(std::chrono::milliseconds(x))
-static uint64_t gLastProcessedLogId = 0;
-
+static uint64_t gLastProcessedLogId = UINT64_MAX;
+long long gTotalFetchedLog = 30000000;
 template<typename T>
 T charToNumber(char *a) {
     T retVal = 0;
@@ -110,14 +110,52 @@ bool getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
     return finish;
 }
 
+void requestToPrune(QCPtr& qc, uint64_t* passcode, uint64_t requestedLogId) {
+    struct {
+        RequestResponseHeader header;
+        RequestPruningPageFiles rppf;
+    } packet;
+    LOG("Calling to prune files from 0 to %llu...\n", requestedLogId);
+    memset(&packet, 0, sizeof(packet));
+    packet.header.setSize(sizeof(packet));
+    packet.header.randomizeDejavu();
+    packet.header.setType(RequestPruningPageFiles::type());
+    memcpy(packet.rppf.passcode, passcode, 4 * sizeof(uint64_t));
+    packet.rppf.fromLogId = 0;
+    packet.rppf.toLogId = requestedLogId;
+    qc->sendData((uint8_t*)&packet, packet.header.size());
+    auto result = qc->receivePacketAs<ResponsePruningPageFiles>();
+    if (result.success != 0)
+    {
+        LOG("Failed to prune files, return code %d\n", result.success);
+    }
+    else
+    {
+        LOG("Successfully delete log file from 0 to %llu...\n", requestedLogId);
+    }
+}
+
 bool getLogFromNodeLargeBatch(QCPtr &qc, uint64_t *passcode, uint64_t start, uint64_t end)
 {
-    start = std::max(gLastProcessedLogId + 1, start);
+    if (gLastProcessedLogId == UINT64_MAX)
+    {
+        gLastProcessedLogId = 0;
+    }
+    else
+    {
+        start = std::max(gLastProcessedLogId + 1, start);
+    }
     for (uint64_t s = start; s <= end; s += MAX_LOG_EVENT_PER_CALL)
     {
         uint64_t e = std::min(end, s + MAX_LOG_EVENT_PER_CALL - 1);
         if (!getLogFromNode(qc, passcode, s, e)) return false;
         SLEEP(RELAX_PER_CALL);
+        gTotalFetchedLog += (e - s + 1); // inclusive
+        if (gTotalFetchedLog >= PRUNE_FILES_INTERVAL)
+        {
+            requestToPrune(qc, passcode, e);
+            gTotalFetchedLog = 0;
+        }
     }
     return true;
 }
@@ -231,26 +269,6 @@ void getLogStateDigest(QCPtr& qc, uint64_t* passcode, uint32_t requestedTick, un
     qc->sendData((uint8_t*)&packet, packet.header.size());
     auto result = qc->receivePacketAs<ResponseLogStateDigest>();
     memcpy(out, result.digest, 32);
-}
-
-void requestToPrune(QCPtr& qc, uint64_t* passcode, uint64_t requestedLogId) {
-    struct {
-        RequestResponseHeader header;
-        RequestPruningPageFiles rppf;
-    } packet;
-    memset(&packet, 0, sizeof(packet));
-    packet.header.setSize(sizeof(packet));
-    packet.header.randomizeDejavu();
-    packet.header.setType(RequestPruningPageFiles::type());
-    memcpy(packet.rppf.passcode, passcode, 4 * sizeof(uint64_t));
-    packet.rppf.fromLogId = 0;
-    packet.rppf.toLogId = requestedLogId;
-    qc->sendData((uint8_t*)&packet, packet.header.size());
-    auto result = qc->receivePacketAs<ResponsePruningPageFiles>();
-    if (result.success != 0)
-    {
-        LOG("Failed to prune files, return code %d\n", result.success);
-    }
 }
 
 static CurrentTickInfo getTickInfoFromNode(QCPtr &qc) {
@@ -436,8 +454,7 @@ int run(int argc, char *argv[]) {
     uint32_t currentTick = 0;
     bool needReconnect = true;
     int failedCount = 0;
-    int maxFailedCount = 5;
-    long long totalFetchedLog = 0;
+    int maxFailedCount = 5;    
     unsigned int initTick = 0;
     while (1) {
         try {
@@ -540,13 +557,7 @@ int run(int argc, char *argv[]) {
                     needReconnect = true;
                     SLEEP(10000);
                     continue;
-                }
-                totalFetchedLog += (toId - fromId);
-                if (totalFetchedLog >= PRUNE_FILES_INTERVAL)
-                {
-                    requestToPrune(qc, passcode, toId);
-                    totalFetchedLog = 0;
-                }
+                }                
             }
             else
             {
