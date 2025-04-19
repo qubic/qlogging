@@ -11,13 +11,14 @@
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 #define MAX_LOG_EVENT_PER_CALL 100000
-#define RELAX_PER_CALL 100 //time to sleep between every call
+#define RELAX_PER_CALL 0 //time to sleep between every call
 #define REPORT_DIGEST_INTERVAL 10 // ticks
 #define PRUNE_FILES_INTERVAL 0xFFFFFFFFFFFFFFFFULL // should be 30000000 to match core
-#define DEBUG 1
+#define DEBUG 0
 #define SLEEP(x) std::this_thread::sleep_for(std::chrono::milliseconds(x))
 static uint64_t gLastProcessedLogId = UINT64_MAX;
 long long gTotalFetchedLog = 30000000;
+long long gByteReceived = 0;
 template<typename T>
 T charToNumber(char *a) {
     T retVal = 0;
@@ -76,6 +77,7 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
         if (header->type() == RespondLog::type()) {
             auto logBuffer = (uint8_t *) (data + ptr + sizeof(RequestResponseHeader));
             retLogId = printQubicLog(logBuffer, header->size() - sizeof(RequestResponseHeader), fromId, toId);
+            gByteReceived += header->size();
             if (retLogId == -1)
             {
                 break;
@@ -87,11 +89,11 @@ bool getLogFromNodeChunk(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_
     }
 
     if (retLogId < toId) {
-        // round buffer case, only the first half returned, call one more time to print out another half
-        return getLogFromNodeChunk(qc, passcode, retLogId + 1, toId);
+        LOG("[0] WARNING: Node doesn't return full data\n");
+        return false;
     }
     if (retLogId == -1) {
-        LOG("[0] WARNING: Unexpected value for retLogId\n");
+        LOG("[1] WARNING: Unexpected value for retLogId (-1)\n");
         return false;
     }
     return true;
@@ -103,8 +105,9 @@ bool getLogFromNode(QCPtr &qc, uint64_t *passcode, uint64_t fromId, uint64_t toI
     bool finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
     while (!finish && retry++ < 5)
     {
-        SLEEP(10000);
-        LOG("Failed to get logging content, retry in 10 seconds...\n");
+        SLEEP(1000);
+        LOG("Failed to get logging content, retry in 1 second...\n");
+        fromId = std::max(gLastProcessedLogId + 1, fromId);
         finish = getLogFromNodeChunk(qc, passcode, fromId, toId);
     }
     return finish;
@@ -437,12 +440,12 @@ void printTxMapTable(ResponseAllLogIdRangesFromTick& txmap)
     LOG("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 }
 
-
 int run(int argc, char *argv[]) {
-    if (argc != 8) {
-        printf("./qlogging [nodeip] [nodeport] [passcode u64 x 4] [tick to start]\n");
+    if (argc != 9) {
+        printf("./qlogging [nodeip] [nodeport] [passcode u64 x 4] [tick to start] [debug]\n");
         return 0;
     }
+    
     uint8_t arbPubkey[32];
     getPublicKeyFromIdentity(ARBITRATOR, arbPubkey);
     char *nodeIp = argv[1];
@@ -450,12 +453,14 @@ int run(int argc, char *argv[]) {
     uint64_t passcode[4] = {charToNumber<unsigned long long>(argv[3]), charToNumber<unsigned long long>(argv[4]),
                             charToNumber<unsigned long long>(argv[5]), charToNumber<unsigned long long>(argv[6])};
     unsigned int tick = charToNumber<unsigned int>(argv[7]);
+    gLastProcessedLogId = charToNumber<uint64_t>(argv[8]);
     QCPtr qc;
     uint32_t currentTick = 0;
     bool needReconnect = true;
     int failedCount = 0;
     int maxFailedCount = 5;    
     unsigned int initTick = 0;
+    
     while (1) {
         try {
             if (needReconnect) {
@@ -478,9 +483,9 @@ int run(int argc, char *argv[]) {
                 }
                 currentTick = getTickNumberFromNode(qc);
             }
-            if (currentTick < tick) {
+            if (currentTick <= tick) {
                 printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
-                SLEEP(10000);
+                SLEEP(3000);
                 continue;
             }
 
@@ -496,7 +501,7 @@ int run(int argc, char *argv[]) {
                 else
                 {
                     LOG("Failed to get log digest at tick %d - retry...\n", tick - 2);
-                    SLEEP(10000);
+                    SLEEP(3000);
                     continue;
                 }
             }
@@ -514,7 +519,7 @@ int run(int argc, char *argv[]) {
                     LOG("Reconnecting...\n");
                     failedCount = 0;
                     needReconnect = true;
-                    SLEEP(10000);
+                    SLEEP(3000);
                 }
                 continue;
             }
@@ -532,7 +537,7 @@ int run(int argc, char *argv[]) {
             if (is_not_yet_generated)
             {
                 printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
-                SLEEP(10000);
+                SLEEP(3000);
                 continue;
             }
 
@@ -555,24 +560,26 @@ int run(int argc, char *argv[]) {
                 {
                     LOG("Failed to get batch log [%llu -> %llu]. Retry in 10s\n", fromId, toId);
                     needReconnect = true;
-                    SLEEP(10000);
+                    SLEEP(1000);
                     continue;
-                }                
+                }
             }
             else
             {
                 LOG("[DO NOT EXPECT HERE] Malformed data %u\n", tick);
             }
             tick++;
+            
             fflush(stdout);
         }
         catch (std::logic_error &ex) {
             printf("%s\n", ex.what());
             fflush(stdout);
             needReconnect = true;
-            SLEEP(10000);
+            SLEEP(3000);
         }
     }
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
