@@ -441,8 +441,8 @@ void printTxMapTable(ResponseAllLogIdRangesFromTick& txmap)
 }
 
 int run(int argc, char *argv[]) {
-    if (argc != 9) {
-        printf("./qlogging [nodeip] [nodeport] [passcode u64 x 4] [tick to start] [debug]\n");
+    if (argc != 8) {
+        printf("./qlogging [nodeip] [nodeport] [passcode u64 x 4] [tick to start]\n");
         return 0;
     }
     
@@ -453,7 +453,6 @@ int run(int argc, char *argv[]) {
     uint64_t passcode[4] = {charToNumber<unsigned long long>(argv[3]), charToNumber<unsigned long long>(argv[4]),
                             charToNumber<unsigned long long>(argv[5]), charToNumber<unsigned long long>(argv[6])};
     unsigned int tick = charToNumber<unsigned int>(argv[7]);
-    gLastProcessedLogId = charToNumber<uint64_t>(argv[8]);
     QCPtr qc;
     uint32_t currentTick = 0;
     bool needReconnect = true;
