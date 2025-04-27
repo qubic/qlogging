@@ -251,9 +251,9 @@ std::string parseLogToString_type2_type3(uint8_t* ptr){
                          + std::to_string(unit[6]);
     return result;
 }
-unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
+unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize, uint64_t fromId, uint64_t toId){
     if (bufferSize == 0){
-//        LOG("Empty log\n");
+        LOG("Empty log\n");
         return -1;
     }
     if (bufferSize < LOG_HEADER_SIZE){
@@ -262,6 +262,12 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
     }
     uint8_t* end = logBuffer + bufferSize;
     unsigned long long retLogId = 0;
+    bool isBigChunk = false;
+    if (toId - fromId > 3000)
+    {
+        isBigChunk = true;
+        printf("[LARGE LOGGING BATCH => ONLY PRINT HEAD AND TAIL]\n");
+    }
     while (logBuffer < end){
         // basic info
         uint16_t epoch = *((unsigned char*)(logBuffer));
@@ -362,7 +368,19 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize){
                 break;
             }
         }
-        LOG("[%llu] %u.%03d %s: %s\n", logId, tick, epoch, mt.c_str(), humanLog.c_str());
+        if (isBigChunk)
+        {
+            if ((logId < (fromId + 10) || (logId > toId - 10)))
+            {
+                LOG("[%llu] %u.%03d %s: %s\n", logId, tick, epoch, mt.c_str(), humanLog.c_str());
+            }
+        }
+        else
+        {
+            LOG("[%llu] %u.%03d %s: %s\n", logId, tick, epoch, mt.c_str(), humanLog.c_str());
+        }
+        
+        
         if (humanLog == "null"){
             char buff[1024*2 + 1] = {0};
             for (unsigned int i = 0; i < std::min(messageSize, (uint32_t)1024); i++){

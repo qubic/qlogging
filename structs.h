@@ -208,3 +208,48 @@ struct RespondLog // Returns buffered log; clears the buffer; make sure you fetc
         return 45;
     }
 };
+
+// Request logid ranges of all txs from a tick
+struct RequestPruningPageFiles
+{
+    unsigned long long passcode[4];
+    unsigned long long fromLogId;
+    unsigned long long toLogId;
+
+    static constexpr unsigned char type()
+    {
+        return 56;
+    }
+};
+
+// Response 0 if success, otherwise error code will be returned
+struct ResponsePruningPageFiles
+{
+    long long success;
+    static constexpr unsigned char type()
+    {
+        return 57;
+    }
+};
+
+// Request logid ranges of all txs from a tick
+struct RequestLogStateDigest
+{
+    unsigned long long passcode[4];
+    unsigned int requestedTick;
+
+    static constexpr unsigned char type()
+    {
+        return 58;
+    }
+};
+
+// Response 0 if success, otherwise error code will be returned
+struct ResponseLogStateDigest
+{
+    unsigned char digest[32];
+    static constexpr unsigned char type()
+    {
+        return 59;
+    }
+};
