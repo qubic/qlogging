@@ -483,7 +483,7 @@ int run(int argc, char *argv[]) {
                 }
                 currentTick = getTickNumberFromNode(qc);
             }
-            if (currentTick <= tick) {
+            if (currentTick < tick) {
                 printDebug("Current tick %u vs local tick %u | sleep 3s\n", currentTick, tick);
                 SLEEP(3000);
                 continue;
@@ -513,14 +513,15 @@ int run(int argc, char *argv[]) {
             bool is_not_yet_generated = isNotYetGenerated(all_ranges);
             if (is_zero)
             {
-                LOG("Failed to receive data for tick %u\n", tick);
                 if (failedCount++ >= maxFailedCount)
                 {
+                    LOG("Failed to receive data for tick %u\n", tick);
                     LOG("Reconnecting...\n");
                     failedCount = 0;
                     needReconnect = true;
                     SLEEP(3000);
                 }
+                SLEEP(1000);
                 continue;
             }
             else
