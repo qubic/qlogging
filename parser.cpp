@@ -270,7 +270,7 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize, uint64_t fr
     }
     while (logBuffer < end){
         // basic info
-        uint16_t epoch = *((unsigned char*)(logBuffer));
+        uint16_t epoch = *((unsigned short*)(logBuffer));
         uint32_t tick = *((unsigned int*)(logBuffer + 2));
         uint32_t tmp = *((unsigned int*)(logBuffer + 6));
         uint64_t logId = *((unsigned long long*)(logBuffer + 10));
