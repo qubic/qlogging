@@ -12,11 +12,11 @@ int parseToStringDetailLevel = 1;
 #define QU_TRANSFER 0
 #define QU_TRANSFER_LOG_SIZE 72
 #define ASSET_ISSUANCE 1
-#define ASSET_ISSUANCE_LOG_SIZE 55
+#define ASSET_ISSUANCE_LOG_SIZE 63
 #define ASSET_OWNERSHIP_CHANGE 2
-#define ASSET_OWNERSHIP_CHANGE_LOG_SIZE 119
+#define ASSET_OWNERSHIP_CHANGE_LOG_SIZE 127
 #define ASSET_POSSESSION_CHANGE 3
-#define ASSET_POSSESSION_CHANGE_LOG_SIZE 119
+#define ASSET_POSSESSION_CHANGE_LOG_SIZE 127
 #define CONTRACT_ERROR_MESSAGE 4
 #define CONTRACT_ERROR_MESSAGE_LOG_SIZE 4
 #define CONTRACT_WARNING_MESSAGE 5
@@ -79,13 +79,16 @@ std::string parseLogToString_type1(uint8_t* ptr){
     uint8_t unit[8] = {0};
 
     long long numberOfShares = 0;
+    long long managingIndex = 0;
     const bool isLowerCase = false;
     getIdentityFromPublicKey(ptr, sourceIdentity, isLowerCase);
     memcpy(&numberOfShares, ptr+32, 8);
-    memcpy(name, ptr+32+8, 7);
+    memcpy(&managingIndex, ptr + 32+8, 8);
+    memcpy(name, ptr+32+8+8, 7);
     numberOfDecimalPlaces = ((char*)ptr)[32+8+7];
-    memcpy(unit, ptr+32+8+7+1, 7);
+    memcpy(unit, ptr+32+8+8+7+1, 7);
     std::string result = std::string(sourceIdentity) + " issued " + std::to_string(numberOfShares) + " " + std::string(name)
+                        + "(ManagingContractIndex: " + std::to_string(managingIndex) + ")" +
                        + ". Number of decimal: " + std::to_string(numberOfDecimalPlaces) + ". Unit of measurement: "
                        + std::to_string(unit[0]) + "-"
                        + std::to_string(unit[1]) + "-"
@@ -231,16 +234,19 @@ std::string parseLogToString_type2_type3(uint8_t* ptr){
     char numberOfDecimalPlaces = 0;
     char unit[8] = {0};
     long long numberOfShares = 0;
+    long long managingIndex = 0;
     const bool isLowerCase = false;
     getIdentityFromPublicKey(ptr, sourceIdentity, isLowerCase);
-    getIdentityFromPublicKey(ptr+32, dstIdentity, isLowerCase);
-    getIdentityFromPublicKey(ptr+64, issuerIdentity, isLowerCase);
-    memcpy(&numberOfShares, ptr+96, 8);
-    memcpy(name, ptr+96+8, 7);
-    numberOfDecimalPlaces = ((char*)ptr)[96+8+7];
-    memcpy(unit, ptr+96+8+7+1, 7);
+    getIdentityFromPublicKey(ptr + 32, dstIdentity, isLowerCase);
+    getIdentityFromPublicKey(ptr + 64, issuerIdentity, isLowerCase);
+    memcpy(&numberOfShares, ptr + 96, 8);
+    memcpy(&managingIndex, ptr + 96 + 8, 8);
+    memcpy(name, ptr + 96 + 8 + 8, 7);
+    numberOfDecimalPlaces = ((char*)ptr)[96 + 8 + 8 + 7];
+    memcpy(unit, ptr + 96 + 8 + 8 + 7 + 1, 7);
     std::string result = "from " + std::string(sourceIdentity) + " to " + std::string(dstIdentity) + " " + std::to_string(numberOfShares) + " " + std::string(name)
                          + "(Issuer: " + std::string(issuerIdentity) + ")"
+                         + "(ManagingContractIndex: " + std::to_string(managingIndex) + ")" +
                          + ". Number of decimal: " + std::to_string(numberOfDecimalPlaces) + ". Unit of measurement: "
                          + std::to_string(unit[0]) + "-"
                          + std::to_string(unit[1]) + "-"
