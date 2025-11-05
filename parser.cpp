@@ -23,7 +23,7 @@ int parseToStringDetailLevel = 1;
 #define CONTRACT_INFORMATION_MESSAGE 6
 #define CONTRACT_DEBUG_MESSAGE 7
 #define BURNING 8
-#define BURNING_LOG_SIZE 40
+#define BURNING_LOG_SIZE 44
 #define DUST_BURNING 9
 #define DUST_BURNING_MAX_LOG_SIZE 2621442
 #define SPECTRUM_STATS 10
@@ -135,8 +135,9 @@ std::string parseToStringBurningLog(uint8_t* ptr)
 {
     char sourceIdentity[61] = { 0 };
     uint64_t burnAmount = *((uint64_t*)(ptr+32));
+    uint32_t contractIndexBurnedFor = *((uint32_t*)(ptr+32+8));
     getIdentityFromPublicKey(ptr, sourceIdentity, false);
-    return std::string(sourceIdentity) + " burned " + std::to_string(burnAmount) + " QU";
+    return std::string(sourceIdentity) + " burned " + std::to_string(burnAmount) + " QU for contract index " + std::to_string(contractIndexBurnedFor);
 }
 
 struct DustBurning
