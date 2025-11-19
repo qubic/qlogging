@@ -28,6 +28,8 @@ int parseToStringDetailLevel = 1;
 #define DUST_BURNING_MAX_LOG_SIZE 2621442
 #define SPECTRUM_STATS 10
 #define SPECTRUM_STATS_LOG_SIZE 224
+#define CONTRACT_RESERVE_DEDUCTION 13
+#define CONTRACT_RESERVE_DEDUCTION_LOG_SIZE 24
 #define CUSTOM_MESSAGE 255
 
 #define LOG_HEADER_SIZE 26 // 2 bytes epoch + 4 bytes tick + 4 bytes log size/types + 8 bytes log id + 8 bytes log digest
@@ -56,6 +58,8 @@ std::string logTypeToString(uint8_t type){
             return "Dust burn";
         case 10:
             return "Spectrum stats";
+        case 13:
+            return "Contract reserve deduction";
         case 255:
             return "Custom msg";
     }
@@ -227,6 +231,15 @@ std::string parseToStringSpectrumStats(uint8_t* ptr)
     return retVal;
 }
 
+std::string parseToStringContractReserveDeduction(uint8_t* ptr)
+{
+    uint64_t deductedAmount = *((uint64_t*)ptr);
+    int64_t remainingAmount = *((int64_t*)(ptr + 8));
+    uint32_t contractIndex = *((uint32_t*)(ptr + 16));
+
+    return "Deducted " + std::to_string(deductedAmount) + " QU from contract fee reserve of contract " + std::to_string(contractIndex) + ", remaining amount " + std::to_string(remainingAmount);
+}
+
 std::string parseLogToString_type2_type3(uint8_t* ptr){
     char sourceIdentity[61] = {0};
     char dstIdentity[61] = {0};
@@ -353,6 +366,14 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize, uint64_t fr
                 }
                 else {
                     LOG("Malfunction buffer size for SPECTRUM_STATS log\n");
+                }
+                break;
+            case CONTRACT_RESERVE_DEDUCTION:
+                if (messageSize == CONTRACT_RESERVE_DEDUCTION_LOG_SIZE) {
+                    humanLog = parseToStringContractReserveDeduction(logBuffer);
+                }
+                else {
+                    LOG("Malfunction buffer size for CONTRACT_RESERVE_DEDUCTION log\n");
                 }
                 break;
             // TODO: stay up-to-date with core node contract logger
