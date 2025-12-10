@@ -237,7 +237,7 @@ std::string parseToStringContractReserveDeduction(uint8_t* ptr)
     int64_t remainingAmount = *((int64_t*)(ptr + 8));
     uint32_t contractIndex = *((uint32_t*)(ptr + 16));
 
-    return "Deducted " + std::to_string(deductedAmount) + " QU from contract fee reserve of contract " + std::to_string(contractIndex) + ", remaining amount " + std::to_string(remainingAmount);
+    return "contract " + std::to_string(contractIndex) + ", deducted " + std::to_string(deductedAmount) + ", remaining amount " + std::to_string(remainingAmount);
 }
 
 std::string parseLogToString_type2_type3(uint8_t* ptr){
