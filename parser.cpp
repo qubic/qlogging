@@ -1,6 +1,8 @@
 #include "parser.h"
 #include <string>
 #include <cstring>
+#include <sstream>
+#include <iomanip>
 #include "utils.h"
 #include "keyUtils.h"
 #include "logger.h"
@@ -32,6 +34,8 @@ int parseToStringDetailLevel = 1;
 #define CONTRACT_RESERVE_DEDUCTION_LOG_SIZE 24
 #define ORACLE_QUERY_STATUS_CHANGE 14
 #define ORACLE_QUERY_STATUS_CHANGE_LOG_SIZE 46
+#define ORACLE_SUBSCRIBER_MESSAGE 15
+#define ORACLE_SUBSCRIBER_MESSAGE_LOG_SIZE 24
 #define CUSTOM_MESSAGE 255
 
 #define LOG_HEADER_SIZE 26 // 2 bytes epoch + 4 bytes tick + 4 bytes log size/types + 8 bytes log id + 8 bytes log digest
@@ -64,6 +68,8 @@ std::string logTypeToString(uint8_t type){
             return "Contract reserve deduction";
         case ORACLE_QUERY_STATUS_CHANGE:
             return "Oracle query status change";
+        case ORACLE_SUBSCRIBER_MESSAGE:
+            return "Oracle subscriber change";
         case 255:
             return "Custom msg";
     }
@@ -334,6 +340,52 @@ std::string parseToStringOracleQueryStatusChange(uint8_t* ptr)
     return s;
 }
 
+std::string dateAndTimeToString(uint64_t dateAndTime)
+{
+    uint64_t year = dateAndTime >> 46;
+    uint64_t month = (dateAndTime >> 42) & 0b1111;
+    uint64_t day = (dateAndTime >> 37) & 0b11111;
+    uint64_t hour = (dateAndTime >> 32) & 0b11111;
+    uint64_t minute = (dateAndTime >> 26) & 0b111111;
+    uint64_t second = (dateAndTime >> 20) & 0b111111;
+    uint64_t millisecond = (dateAndTime >> 10) & 0b1111111111;
+    uint64_t microsecondDuringMillisecond = dateAndTime & 0b1111111111;
+    std::stringstream ss;
+    ss << std::setfill('0') << year << "-"
+        << std::setw(2) << month << "-"
+        << std::setw(2) << day << " "
+        << std::setw(2) << hour << ":"
+        << std::setw(2) << minute << ":"
+        << std::setw(2) << second << "."
+        << std::setw(3) << millisecond << "'"
+        << std::setw(3) << microsecondDuringMillisecond;
+    return ss.str();
+}
+
+std::string parseToStringOracleSubscriberMessage(uint8_t* ptr)
+{
+    constexpr uint8_t ORACLE_QUERY_TYPE_CONTRACT_QUERY = 0;
+    constexpr uint8_t ORACLE_QUERY_TYPE_CONTRACT_SUBSCRIPTION = 1;
+    constexpr uint8_t ORACLE_QUERY_TYPE_USER_QUERY = 2;
+
+    int32_t subscriptionId = *((int32_t*)ptr);
+    uint32_t interfaceIndex = *(uint32_t*)(ptr + 4);
+    uint32_t contractIndex = *(uint32_t*)(ptr + 8);
+    uint32_t periodInMilliseconds = *(uint32_t*)(ptr + 12);
+    uint64_t firstQueryDateAndTime = *(int64_t*)(ptr + 16);
+
+    std::string s = "contract " + std::to_string(contractIndex);
+    if (periodInMilliseconds == 0)
+        s += " un";
+    s += "subscribed subscriptionId " + std::to_string(subscriptionId) + ", interface " + std::to_string(interfaceIndex)
+        + ", period " + std::to_string(periodInMilliseconds / 60000) + " minutes";
+    if (firstQueryDateAndTime)
+    {
+        s += ", first query at " + dateAndTimeToString(firstQueryDateAndTime);
+    }
+    return s;
+}
+
 unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize, uint64_t fromId, uint64_t toId){
     if (bufferSize == 0){
         LOG("Empty log\n");
@@ -445,6 +497,14 @@ unsigned long long printQubicLog(uint8_t* logBuffer, int bufferSize, uint64_t fr
                 }
                 else {
                     LOG("Unexpected log message size for ORACLE_QUERY_STATUS_CHANGE\n");
+                }
+                break;
+            case ORACLE_SUBSCRIBER_MESSAGE:
+                if (messageSize == ORACLE_SUBSCRIBER_MESSAGE_LOG_SIZE) {
+                    humanLog = parseToStringOracleSubscriberMessage(logBuffer);
+                }
+                else {
+                    LOG("Unexpected log message size for ORACLE_SUBSCRIBER_MESSAGE\n");
                 }
                 break;
             // TODO: stay up-to-date with core node contract logger
