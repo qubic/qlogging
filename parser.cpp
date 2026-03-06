@@ -374,15 +374,14 @@ std::string parseToStringOracleSubscriberMessage(uint8_t* ptr)
     uint32_t periodInMilliseconds = *(uint32_t*)(ptr + 12);
     uint64_t firstQueryDateAndTime = *(int64_t*)(ptr + 16);
 
-    std::string s = "contract " + std::to_string(contractIndex);
+    std::string s = "contract " + std::to_string(contractIndex) + " ";
     if (periodInMilliseconds == 0)
-        s += " un";
-    s += "subscribed subscriptionId " + std::to_string(subscriptionId) + ", interface " + std::to_string(interfaceIndex)
-        + ", period " + std::to_string(periodInMilliseconds / 60000) + " minutes";
+        s += "un";
+    s += "subscribed subscriptionId " + std::to_string(subscriptionId) + ", interface " + std::to_string(interfaceIndex);
+    if (periodInMilliseconds != 0)
+        s += ", period " + std::to_string(periodInMilliseconds / 60000) + " minutes";
     if (firstQueryDateAndTime)
-    {
         s += ", first query at " + dateAndTimeToString(firstQueryDateAndTime);
-    }
     return s;
 }
 
