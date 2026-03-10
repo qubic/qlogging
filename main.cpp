@@ -8,6 +8,7 @@
 #include "K12AndKeyUtil.h"
 #include "logger.h"
 #include <stdexcept>
+#include <cstring>
 
 #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 #define MAX_LOG_EVENT_PER_CALL 100000
@@ -447,7 +448,7 @@ void printTxMapTable(ResponseAllLogIdRangesFromTick& txmap)
 
 int run(int argc, char *argv[]) {
     if (argc < 8) {
-        printf("./qlogging [nodeip] [nodeport] [passcode u64 x 4] [tick to start] [start logId (optional)] \n");
+        printf("./qlogging [nodeip] [nodeport] [passcode u64 x 4] [tick to start] [start logId (optional)] [-s | -single] \n");
         return 0;
     }
     
@@ -458,7 +459,13 @@ int run(int argc, char *argv[]) {
     uint64_t passcode[4] = {charToNumber<unsigned long long>(argv[3]), charToNumber<unsigned long long>(argv[4]),
                             charToNumber<unsigned long long>(argv[5]), charToNumber<unsigned long long>(argv[6])};
     unsigned int tick = charToNumber<unsigned int>(argv[7]);
-    if (argc >= 9) gLastProcessedLogId = charToNumber<unsigned int>(argv[8]);
+    bool singleTickMode = false;
+    for (int i = 8; i < argc; i++) {
+        if (strcmp(argv[i], "-single") == 0 || strcmp(argv[i], "-s") == 0)
+            singleTickMode = true;
+        else if (gLastProcessedLogId == UINT64_MAX)
+            gLastProcessedLogId = charToNumber<unsigned int>(argv[i]);
+    }
     QCPtr qc;
     uint32_t currentTick = 0;
     bool needReconnect = true;
@@ -537,6 +544,7 @@ int run(int argc, char *argv[]) {
             {
                 if (is_empty) LOG("Tick %u doesn't generate any log\n", tick);
                 if (is_unknown) LOG("This node doesn't have logging for tick %u\n", tick);
+                if (singleTickMode) break;
                 tick++;
                 continue;
             }
@@ -574,6 +582,7 @@ int run(int argc, char *argv[]) {
             {
                 LOG("[DO NOT EXPECT HERE] Malformed data %u\n", tick);
             }
+            if (singleTickMode) break;
             tick++;
             
             fflush(stdout);
